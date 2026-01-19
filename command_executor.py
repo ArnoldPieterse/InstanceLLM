@@ -50,7 +50,7 @@ class CommandExecutor:
     
     def detect_commands(self, text: str) -> List[Dict[str, str]]:
         """
-        Detect file system commands in LLM output.
+        Detect file system and terminal commands in LLM output.
         
         Args:
             text: The text to search for commands
@@ -59,6 +59,18 @@ class CommandExecutor:
             List of detected commands with type and parameters
         """
         commands = []
+        
+        # Terminal command patterns (detect code blocks and command markers)
+        # Look for commands in code blocks or after $ or >
+        terminal_patterns = [
+            # PowerShell/CMD commands in code blocks
+            (r'```(?:powershell|ps1|cmd|bash|sh|shell)\n(.*?)\n```', 'terminal_block'),
+            # Single line commands with $ or > prefix
+            (r'^\$\s+(.+?)$', 'terminal_line'),
+            (r'^>\s+(.+?)$', 'terminal_line'),
+            # Python scripts
+            (r'```python\n(.*?)\n```', 'python_script'),
+        ]
         
         # PowerShell patterns
         powershell_patterns = [
@@ -81,7 +93,18 @@ class CommandExecutor:
             (r'md\s+["\']?([^"\'>\n]+)["\']?', 'mkdir'),
         ]
         
-        # Combine all patterns
+        # Detect terminal commands first (higher priority)
+        for pattern, cmd_type in terminal_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+            for match in matches:
+                command_text = match.group(1).strip()
+                commands.append({
+                    'type': cmd_type,
+                    'command': command_text,
+                    'original': match.group(0)
+                })
+        
+        # Then detect file system commands
         all_patterns = powershell_patterns + bash_patterns + cmd_patterns
         
         for pattern, cmd_type in all_patterns:
@@ -171,6 +194,78 @@ class CommandExecutor:
                 'error': str(e)
             }
     
+    def execute_terminal_command(self, command: str, cmd_type: str = 'terminal_block') -> Dict[str, any]:
+        """
+        Execute a terminal command safely within the workspace.
+        
+        Args:
+            command: Command string to execute
+            cmd_type: Type of command (terminal_block, terminal_line, python_script)
+            
+        Returns:
+            Result dictionary with status, output, and error
+        """
+        try:
+            # Determine the shell
+            if self.is_windows:
+                shell_cmd = ['powershell', '-Command', command]
+            else:
+                shell_cmd = ['bash', '-c', command]
+            
+            # For Python scripts, use python directly
+            if cmd_type == 'python_script':
+                # Write to temp file and execute
+                temp_file = self.workspace_dir / '_temp_script.py'
+                temp_file.write_text(command)
+                shell_cmd = ['python', str(temp_file)]
+            
+            logger.info(f"Executing terminal command in workspace: {command[:100]}")
+            
+            # Execute with timeout
+            result = subprocess.run(
+                shell_cmd,
+                cwd=str(self.workspace_dir),
+                capture_output=True,
+                text=True,
+                timeout=30,  # 30 second timeout
+                shell=False
+            )
+            
+            # Clean up temp file if it exists
+            if cmd_type == 'python_script':
+                temp_file = self.workspace_dir / '_temp_script.py'
+                if temp_file.exists():
+                    temp_file.unlink()
+            
+            success = result.returncode == 0
+            
+            return {
+                'success': success,
+                'command': command[:200],  # Truncate for display
+                'return_code': result.returncode,
+                'stdout': result.stdout.strip() if result.stdout else '',
+                'stderr': result.stderr.strip() if result.stderr else '',
+                'message': 'Command executed successfully' if success else 'Command failed',
+                'type': cmd_type
+            }
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"Command timeout: {command[:100]}")
+            return {
+                'success': False,
+                'command': command[:200],
+                'error': 'Command timed out after 30 seconds',
+                'type': cmd_type
+            }
+        except Exception as e:
+            logger.error(f"Terminal command error: {e}")
+            return {
+                'success': False,
+                'command': command[:200],
+                'error': str(e),
+                'type': cmd_type
+            }
+    
     def execute_commands(self, commands: List[Dict[str, str]]) -> List[Dict[str, any]]:
         """
         Execute a list of detected commands.
@@ -185,16 +280,18 @@ class CommandExecutor:
         
         for cmd in commands:
             cmd_type = cmd['type']
-            path = cmd['path']
             
-            if cmd_type == 'mkdir':
-                result = self.execute_mkdir(path)
+            # Handle terminal commands
+            if cmd_type in ['terminal_block', 'terminal_line', 'python_script']:
+                result = self.execute_terminal_command(cmd['command'], cmd_type)
+            # Handle file system commands
+            elif cmd_type == 'mkdir':
+                result = self.execute_mkdir(cmd['path'])
             elif cmd_type == 'touch':
-                result = self.execute_touch(path)
+                result = self.execute_touch(cmd['path'])
             else:
                 result = {
                     'success': False,
-                    'path': path,
                     'error': f'Unknown command type: {cmd_type}'
                 }
             

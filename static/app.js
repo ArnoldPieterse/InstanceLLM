@@ -609,7 +609,7 @@ function getSubroutinePrompt() {
         'code': 'Respond with code only. Do not include explanations, comments, or text outside of the code.',
         'concise': 'Be extremely concise. Provide brief, direct answers without elaboration.',
         'verbose': 'Provide detailed, thorough explanations with examples and comprehensive information.',
-        'filesystem': 'When relevant, include complete file system commands (mkdir, New-Item, touch, etc.) for creating folders and files with full permissions. Provide Windows PowerShell, CMD, and/or bash commands as appropriate. Include commands for setting permissions, creating directory structures, and managing files.'
+        'filesystem': 'You have full terminal access within a safe workspace directory. Include executable commands in code blocks (```powershell, ```bash, ```python) for file operations, running scripts, installing packages, etc. Commands will be automatically executed. Provide Windows PowerShell, CMD, bash, or Python commands as appropriate.'
     };
     
     const instructions = activeInstance.subroutines
@@ -740,34 +740,91 @@ function displayCommandResults(results) {
     messageDiv.style.background = '#e0f7e0';
     messageDiv.style.borderLeft = '3px solid #008000';
     
-    let html = '<div class="label">📁 File System Commands:</div><div class="content">';
-    
     const successCount = results.filter(r => r.success).length;
     const totalCount = results.length;
     
-    html += `<strong>Executed ${successCount}/${totalCount} commands successfully</strong><br><br>`;
+    // Separate file system and terminal commands
+    const fsCommands = results.filter(r => !r.type || r.type === 'mkdir' || r.type === 'touch');
+    const terminalCommands = results.filter(r => r.type && (r.type === 'terminal_block' || r.type === 'terminal_line' || r.type === 'python_script'));
     
-    results.forEach((result, index) => {
-        const icon = result.success ? '✅' : '❌';
-        const color = result.success ? '#008000' : '#800000';
-        
-        html += `<div style="margin-bottom: 8px; padding: 6px; background: #f0f0f0; border-radius: 3px;">`;
-        html += `<strong style="color: ${color};">${icon} ${result.original_command}</strong><br>`;
-        
-        if (result.success) {
-            html += `<span style="font-size: 11px;">✓ ${result.message}</span><br>`;
-            html += `<span style="font-size: 10px; color: #666;">Path: ${result.path}</span>`;
-        } else {
-            html += `<span style="font-size: 11px; color: #800000;">✗ ${result.error}</span>`;
-        }
-        
-        html += `</div>`;
-    });
+    let html = '';
     
-    html += '</div>';
+    // File system commands
+    if (fsCommands.length > 0) {
+        html += '<div class="label">📁 File System Commands:</div><div class="content">';
+        html += `<strong>Executed ${fsCommands.filter(r => r.success).length}/${fsCommands.length} successfully</strong><br><br>`;
+        
+        fsCommands.forEach((result, index) => {
+            const icon = result.success ? '✅' : '❌';
+            const color = result.success ? '#008000' : '#800000';
+            
+            html += `<div style="margin-bottom: 8px; padding: 6px; background: #f0f0f0; border-radius: 3px;">`;
+            html += `<strong style="color: ${color};">${icon} ${result.original_command}</strong><br>`;
+            
+            if (result.success) {
+                html += `<span style="font-size: 11px;">✓ ${result.message}</span><br>`;
+                html += `<span style="font-size: 10px; color: #666;">Path: ${result.path}</span>`;
+            } else {
+                html += `<span style="font-size: 11px; color: #800000;">✗ ${result.error}</span>`;
+            }
+            
+            html += `</div>`;
+        });
+        html += '</div>';
+    }
+    
+    // Terminal commands
+    if (terminalCommands.length > 0) {
+        if (fsCommands.length > 0) html += '<br>';
+        html += '<div class="label">💻 Terminal Commands:</div><div class="content">';
+        html += `<strong>Executed ${terminalCommands.filter(r => r.success).length}/${terminalCommands.length} successfully</strong><br><br>`;
+        
+        terminalCommands.forEach((result, index) => {
+            const icon = result.success ? '✅' : '❌';
+            const color = result.success ? '#008000' : '#800000';
+            
+            html += `<div style="margin-bottom: 8px; padding: 6px; background: #f0f0f0; border-radius: 3px;">`;
+            html += `<strong style="color: ${color};">${icon} Command</strong><br>`;
+            html += `<code style="background: #ffffff; padding: 2px 4px; font-size: 10px; display: block; margin: 4px 0;">${escapeHtml(result.command)}</code>`;
+            
+            if (result.success) {
+                if (result.stdout) {
+                    html += `<div style="margin-top: 4px;"><strong style="font-size: 10px;">Output:</strong></div>`;
+                    html += `<pre style="background: #ffffff; padding: 6px; margin: 4px 0; font-size: 10px; max-height: 200px; overflow-y: auto; border: 1px solid #ccc;">${escapeHtml(result.stdout)}</pre>`;
+                }
+                if (result.stderr) {
+                    html += `<div style="margin-top: 4px;"><strong style="font-size: 10px; color: #ff8800;">Warnings:</strong></div>`;
+                    html += `<pre style="background: #fff8f0; padding: 6px; margin: 4px 0; font-size: 10px; max-height: 100px; overflow-y: auto; border: 1px solid #ffcc99;">${escapeHtml(result.stderr)}</pre>`;
+                }
+                html += `<span style="font-size: 10px; color: #666;">Exit code: ${result.return_code}</span>`;
+            } else {
+                html += `<span style="font-size: 11px; color: #800000;">✗ ${result.error || 'Command failed'}</span>`;
+                if (result.stderr) {
+                    html += `<pre style="background: #ffe0e0; padding: 6px; margin: 4px 0; font-size: 10px; max-height: 100px; overflow-y: auto; border: 1px solid #ffaaaa;">${escapeHtml(result.stderr)}</pre>`;
+                }
+            }
+            
+            html += `</div>`;
+        });
+        html += '</div>';
+    }
+    
     messageDiv.innerHTML = html;
     
     output.appendChild(messageDiv);
+    output.scrollTop = output.scrollHeight;
+    
+    // Announce command execution
+    const announcement = `Executed ${successCount} of ${totalCount} commands`;
+    speak(announcement);
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
     output.scrollTop = output.scrollHeight;
     
     // Announce command execution
@@ -982,7 +1039,7 @@ function renderInstances() {
                 'code': 'CODE',
                 'concise': 'BRIEF',
                 'verbose': 'DETAIL',
-                'filesystem': '📁'
+                'filesystem': '�'
             };
             subroutineBadges = instance.subroutines.map(sub => {
                 // Handle custom subroutines
@@ -1627,7 +1684,7 @@ function updateActiveInstructions() {
         'code': 'CODE: Code only, no explanations',
         'concise': 'BRIEF: Direct, concise answers',
         'verbose': 'DETAIL: Detailed, thorough explanations',
-        'filesystem': '📁 FILE SYSTEM: Include folder/file creation commands'
+        'filesystem': '� TERMINAL: Execute commands and scripts in workspace'
     };
     
     const selected = [];

@@ -138,6 +138,16 @@ body {
     box-shadow: 0 0 4px #00ff00;
 }
 
+.status-dot.starting {
+    background: #ffaa00;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .status-dot.offline {
     background: #ff0000;
 }

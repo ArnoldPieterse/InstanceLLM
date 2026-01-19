@@ -617,8 +617,10 @@ function renderInstances() {
         tile.className = `instance-tile ${instance.id === (activeInstance?.id) ? 'active' : ''}`;
         tile.dataset.instanceId = instance.id;
         
-        const statusClass = instance.status === 'healthy' ? 'online' : 'offline';
-        const statusText = instance.status === 'healthy' ? 'Online' : 'Offline';
+        const statusClass = instance.status === 'healthy' ? 'online' : 
+                           instance.status === 'starting' ? 'starting' : 'offline';
+        const statusText = instance.status === 'healthy' ? 'Online' : 
+                          instance.status === 'starting' ? 'Starting...' : 'Offline';
         
         // Display URL with IP if available, otherwise use hostname from current page
         let displayUrl;
@@ -678,7 +680,26 @@ function selectInstance(instanceId) {
 async function updateInstanceStatuses() {
     for (const instance of instances) {
         try {
-            const response = await fetch(`${instance.url}/health`, { timeout: 2000 });
+            // Create a proper URL for health check
+            let healthUrl;
+            if (instance.url) {
+                healthUrl = `${instance.url}/health`;
+            } else if (instance.local_ip) {
+                healthUrl = `http://${instance.local_ip}:${instance.port}/health`;
+            } else {
+                healthUrl = `http://${window.location.hostname}:${instance.port}/health`;
+            }
+            
+            // Use AbortController for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            
+            const response = await fetch(healthUrl, { 
+                signal: controller.signal,
+                mode: 'cors'
+            });
+            clearTimeout(timeoutId);
+            
             const data = await response.json();
             instance.status = data.status;
             instance.local_ip = data.local_ip;
@@ -686,7 +707,7 @@ async function updateInstanceStatuses() {
             console.log(`Instance ${instance.name} - IP: ${instance.local_ip}, Status: ${instance.status}`);
         } catch (error) {
             instance.status = 'offline';
-            console.log(`Instance ${instance.name} - Offline`);
+            console.log(`Instance ${instance.name} - Offline (${error.name})`);
         }
     }
     renderInstances();
@@ -908,10 +929,17 @@ window.startInstance = async function(instanceId) {
         
         const result = await response.json();
         console.log('Start result:', result);
+        
+        // Optimistically update status
+        instance.status = 'starting';
+        renderInstances();
+        
         alert(`Starting instance: ${instance.name}\n\nPlease wait a few seconds for the server to start...`);
         
-        // Update status after a delay
-        setTimeout(updateInstanceStatuses, 3000);
+        // Update status after delays to check if it's running
+        setTimeout(() => updateInstanceStatuses(), 2000);
+        setTimeout(() => updateInstanceStatuses(), 5000);
+        setTimeout(() => updateInstanceStatuses(), 8000);
     } catch (error) {
         console.error('Start instance error:', error);
         alert(`Failed to start instance: ${error.message}`);
@@ -954,8 +982,10 @@ window.stopInstance = async function(instanceId) {
         const result = await response.json();
         console.log('Stop result:', result);
         
+        // Immediately update status
         instance.status = 'offline';
         renderInstances();
+        saveInstances();
         
         if (result.status === 'error') {
             alert(result.message);
@@ -963,8 +993,8 @@ window.stopInstance = async function(instanceId) {
             alert(`Stopped instance: ${instance.name}`);
         }
         
-        // Update status after a delay
-        setTimeout(updateInstanceStatuses, 1000);
+        // Verify status after a delay
+        setTimeout(() => updateInstanceStatuses(), 1000);
     } catch (error) {
         console.error('Stop instance error:', error);
         alert(`Failed to stop instance: ${error.message}`);

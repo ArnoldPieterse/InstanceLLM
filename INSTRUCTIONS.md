@@ -22,15 +22,22 @@ cd C:\projects\InstanceLLM
 
 ### Step 2: Install Dependencies (One-Time)
 ```bash
-# Option A: All at once
-pip install -r requirements.txt
-
-# Option B: Core dependencies only (if above fails)
+# Core dependencies (required)
 pip install fastapi uvicorn pydantic huggingface_hub requests tqdm
+
+# For real LLM inference (optional - uses mock if skipped)
+# Windows: Requires Visual Studio Build Tools first
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+# Then in new PowerShell:
+pip install llama-cpp-python
+
+# OR use transformers (cannot load GGUF files)
+pip install transformers torch accelerate
 ```
 
 **Expected:** Installation completes without errors.
-**If errors:** Try Option B, or install packages one by one.
+**If llama-cpp-python fails:** The mock LLM will work for testing. Install Visual Studio Build Tools for real inference.
 
 ### Step 3: Run the Server
 ```bash
@@ -96,7 +103,28 @@ pip install fastapi uvicorn pydantic
 ```
 
 ### Issue: "No module named 'llama_cpp'" or "No module named 'transformers'"
-**Expected behavior!** This is normal.
+**This means mock LLM is being used.**
+
+**To use real LLM (GGUF models):**
+```bash
+# Windows only - install Visual Studio Build Tools
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+# Open new PowerShell with VS environment
+& "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
+
+# Install llama-cpp-python
+pip install llama-cpp-python
+
+# Restart server - you'll see:
+```
+**Real LLM Success Message:**
+```
+INFO:__main__:Loading model with llama-cpp-python...
+INFO:__main__:Model loaded successfully!
+```
+
+**Mock LLM (if not installed):**
 The server will use a mock LLM for testing. You'll see:
 ```
 WARNING: USING MOCK LLM FOR TESTING

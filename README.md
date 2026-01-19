@@ -50,7 +50,9 @@ A production-ready Python application that hosts local Large Language Models (LL
 - ❌ "Module not found" → Run: `pip install -r requirements.txt`
 - ❌ "Port already in use" → Use different port: `python llm_server.py model.gguf 8080`
 - ❌ "No model found" → Just run `python llm_server.py` without arguments
-- ℹ️ "Using mock LLM" → This is normal! It means API works, install llama-cpp-python for real inference
+- ℹ️ "Using mock LLM" → This is normal! API works fully. For real LLM:
+  - **Windows:** Install Visual Studio Build Tools (see Step 4 above)
+  - **Linux/Mac:** Run `pip install llama-cpp-python`
 
 ---
 
@@ -123,15 +125,31 @@ This installs:
 
 For **real inference** with actual models, install one of:
 
-```bash
-# For GGUF models (recommended - smaller, faster)
-pip install llama-cpp-python
+#### Option A: GGUF Models (Recommended - Smaller, Faster)
 
-# OR for HuggingFace models
+**Windows - Requires Visual Studio Build Tools:**
+```bash
+# 1. Install Visual Studio Build Tools (one-time setup)
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+# 2. Open a new PowerShell with Visual Studio environment
+& "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
+
+# 3. Install llama-cpp-python
+pip install llama-cpp-python
+```
+
+**Linux/macOS:**
+```bash
+pip install llama-cpp-python
+```
+
+#### Option B: HuggingFace Models (Transformers)
+```bash
 pip install transformers torch accelerate
 ```
 
-**⚠️ Note:** `llama-cpp-python` requires a C++ compiler on Windows. If installation fails, you can still use the mock LLM for testing or use HuggingFace transformers instead.
+**⚠️ Note:** GGUF models require `llama-cpp-python` which needs a C++ compiler on Windows (Visual Studio Build Tools). HuggingFace transformers work but cannot load GGUF files. If you skip this, the mock LLM provides full API functionality for testing.
 
 ## 🚀 Quick Start Guide (For LLMs/AI Assistants)
 
@@ -794,6 +812,27 @@ InstanceLLM/
 2. Use model downloader: `python model_downloader.py`
 3. Manually place GGUF file in `./models/` directory
 4. Check file path is correct (use absolute path if needed)
+
+### llama-cpp-python Build Fails (Windows)
+
+**Problem:** `ERROR: Failed building wheel for llama-cpp-python` with CMake errors
+
+**Solution:**
+```bash
+# Install Visual Studio Build Tools
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+# Open new PowerShell and activate VS environment
+& "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
+
+# Then install
+pip install llama-cpp-python
+```
+
+**Alternative:** Use transformers instead (but cannot load GGUF models)
+```bash
+pip install transformers torch accelerate
+```
 
 ### Model Not Loading / Import Errors
 

@@ -859,10 +859,6 @@ class LLMServer:
                 return response
                 
             except Exception as e:
-                    "pid": process.pid
-                }
-                
-            except Exception as e:
                 logger.error(f"Error creating instance: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         

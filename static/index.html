@@ -4,9 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InstanceLLM Control Panel</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
+    <div class="app-container">
+        <!-- Sidebar for instances -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Instances</div>
+                <button onclick="showAddInstanceDialog()" class="add-instance-btn" title="Add Instance">+</button>
+            </div>
+            <div id="instances-list" class="instances-list">
+                <!-- Instance tiles will be added here -->
+            </div>
+        </div>
+        
+        <!-- Main window -->
+        <div class="main-content">
     <div class="window">
         <div class="title-bar">
             <div class="title-bar-text">InstanceLLM Control Panel</div>
@@ -43,11 +57,13 @@
                         <div class="field-row">
                             <label for="prompt-input">Prompt:</label>
                             <input id="prompt-input" type="text" placeholder="Type your message here..." />
-                            <button onclick="sendPrompt()">Send</button>
                         </div>
-                        <div class="field-row">
-                            <input type="checkbox" id="streaming-mode" checked />
-                            <label for="streaming-mode">Streaming mode</label>
+                        <div class="field-row" style="justify-content: space-between;">
+                            <div>
+                                <input type="checkbox" id="streaming-mode" checked />
+                                <label for="streaming-mode">Streaming mode</label>
+                            </div>
+                            <button onclick="sendPrompt()" style="min-width: 100px;">Send Message</button>
                         </div>
                     </div>
                 </article>
@@ -65,6 +81,12 @@
                             <label>Download Progress</label>
                             <div class="sunken-panel">
                                 <div id="download-status">No downloads in progress</div>
+                                <div id="progress-container" style="display: none; margin-top: 12px;">
+                                    <div class="progress-bar-outer">
+                                        <div id="progress-bar-inner" class="progress-bar-inner" style="width: 0%;"></div>
+                                    </div>
+                                    <div id="progress-text" style="margin-top: 6px; font-size: 10px; text-align: center;">0%</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -107,7 +129,66 @@
             <p class="status-bar-field">API: http://localhost:8001</p>
         </div>
     </div>
+    </div>
+    </div>
 
-    <script src="app.js"></script>
+    <!-- Add Instance Dialog -->
+    <div id="add-instance-dialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-window">
+            <div class="title-bar">
+                <div class="title-bar-text">Add Instance</div>
+                <div class="title-bar-controls">
+                    <button aria-label="Close" onclick="closeAddInstanceDialog()"></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="field-row-stacked">
+                    <label>
+                        <input type="radio" name="instance-type" value="new" checked onchange="toggleInstanceType()"> 
+                        Create New Instance
+                    </label>
+                    <label>
+                        <input type="radio" name="instance-type" value="custom" onchange="toggleInstanceType()"> 
+                        Connect to Existing Instance
+                    </label>
+                </div>
+                
+                <div id="new-instance-fields">
+                    <div class="field-row">
+                        <label for="instance-name">Name:</label>
+                        <input id="instance-name" type="text" placeholder="My LLM Instance" />
+                    </div>
+                    <div class="field-row">
+                        <label for="instance-port">Port:</label>
+                        <input id="instance-port" type="number" min="8000" max="9999" value="8002" />
+                    </div>
+                    <div class="field-row">
+                        <label for="instance-model">Model:</label>
+                        <select id="instance-model">
+                            <option value="">Select model...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="custom-instance-fields" style="display: none;">
+                    <div class="field-row">
+                        <label for="custom-name">Name:</label>
+                        <input id="custom-name" type="text" placeholder="Remote Server" />
+                    </div>
+                    <div class="field-row">
+                        <label for="custom-url">URL:</label>
+                        <input id="custom-url" type="text" placeholder="http://192.168.1.100:8001" />
+                    </div>
+                </div>
+                
+                <div class="field-row" style="justify-content: flex-end; margin-top: 16px; gap: 8px;">
+                    <button onclick="closeAddInstanceDialog()">Cancel</button>
+                    <button onclick="addInstance()">Add Instance</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=2"></script>
 </body>
 </html>

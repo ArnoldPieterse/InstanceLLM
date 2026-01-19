@@ -1,6 +1,27 @@
 # Local LLM Network Server
 
-A production-ready Python application that hosts local Large Language Models (LLMs) on your network with a RESTful API. Perfect for running AI models privately without cloud dependencies.
+A production-ready Python application that hosts local Large Language Models (LLMs) on your network with a **retro Windows 95 web interface**, multi-instance management, and RESTful API. Perfect for running AI models privately without cloud dependencies.
+
+---
+
+## 🎨 Features Overview
+
+### **Windows 95 Style Web Interface**
+- 🖥️ **Retro UI** - Authentic Windows 95 design with beveled buttons and classic styling
+- 💬 **Real-time Chat** - Streaming responses with word-by-word generation
+- 📦 **Model Download** - Download models directly from HuggingFace with animated progress bars
+- ⚙️ **Settings Panel** - Configure temperature, tokens, and sampling parameters
+- 🔧 **Multi-Instance Management** - Run multiple LLM servers on different ports
+- 📊 **Instance Tiles** - Visual sidebar showing all running instances with live status
+
+### **API Features**
+- 🚀 **Simple initialization** with just a model path
+- ⚙️ **Overloaded initialization** with custom LLM parameters (kwargs, dict, or array of tuples)
+- 🌐 **Network-accessible** REST API with FastAPI
+- 📡 **Streaming support** for real-time word-by-word responses
+- 💻 **GPU acceleration** support via n_gpu_layers parameter
+- 📥 **Automatic model downloads** from HuggingFace Hub
+- 🧪 **Mock LLM included** for testing API without model libraries
 
 ---
 
@@ -33,25 +54,28 @@ A production-ready Python application that hosts local Large Language Models (LL
    - Wait for download to complete
    - Server starts automatically
 
-5. **Test it works:**
+5. **Access the Web Interface:**
+   - Open browser to: `http://localhost:8001`
+   - Use the retro Windows 95 interface to chat, download models, and manage instances
+
+6. **Test via API:**
    ```bash
    # In a new terminal
    python quick_test.py
    ```
 
-6. **Use the API:**
-   - Server URL: `http://localhost:8000`
-   - API Docs: `http://localhost:8000/docs`
-   - Health: `http://localhost:8000/health`
+7. **Access API Documentation:**
+   - API Docs: `http://localhost:8001/docs`
+   - Health: `http://localhost:8001/health`
 
-**Expected result:** Server running, responding to prompts successfully.
+**Expected result:** Server running with web interface, responding to prompts successfully.
 
 **Common issues:**
 - ❌ "Module not found" → Run: `pip install -r requirements.txt`
 - ❌ "Port already in use" → Use different port: `python llm_server.py model.gguf 8080`
 - ❌ "No model found" → Just run `python llm_server.py` without arguments
 - ℹ️ "Using mock LLM" → This is normal! API works fully. For real LLM:
-  - **Windows:** Install Visual Studio Build Tools (see Step 4 above)
+  - **Windows:** Install Visual Studio Build Tools (see SETUP_GUIDE.md)
   - **Linux/Mac:** Run `pip install llama-cpp-python`
 
 ---
@@ -59,25 +83,13 @@ A production-ready Python application that hosts local Large Language Models (LL
 ## 🎯 What This Does
 
 This application:
-1. **Hosts LLM models** on your local network (accessible via HTTP API)
-2. **Automatically downloads models** if you don't have one (from HuggingFace)
-3. **Provides REST API endpoints** for prompts and streaming responses
-4. **Supports custom configurations** via overloaded constructors and parameter arrays
-5. **Works with or without GPU** (CPU-only mode supported)
-6. **Includes mock LLM** for testing without actual model inference libraries
-
-## ✨ Features
-
-- 🚀 **Simple initialization** with just a model path
-- ⚙️ **Overloaded initialization** with custom LLM parameters (kwargs, dict, or array of tuples)
-- 🌐 **Network-accessible** REST API with FastAPI (0.0.0.0:8000)
-- 📡 **Streaming support** for real-time word-by-word responses
-- 🔧 **Highly configurable** temperature, tokens, sampling parameters
-- 🔄 **Flexible model loading** supports GGUF and HuggingFace formats
-- 💻 **GPU acceleration** support via n_gpu_layers parameter
-- 📥 **Automatic model downloads** from HuggingFace Hub and custom URLs
-- 🧪 **Mock LLM included** for testing API without model libraries
-- 📚 **Auto-generated API docs** at /docs endpoint (Swagger UI)
+1. **Hosts LLM models** on your local network with a retro Windows 95 web interface
+2. **Manages multiple instances** - Run several LLM servers on different ports simultaneously
+3. **Downloads models** directly from the web UI with real-time progress tracking
+4. **Provides REST API endpoints** for prompts and streaming responses
+5. **Supports custom configurations** via overloaded constructors and parameter arrays
+6. **Works with or without GPU** (CPU-only mode supported)
+7. **Includes mock LLM** for testing without actual model inference libraries
 
 ## 📦 Installation
 
@@ -358,17 +370,27 @@ python model_downloader.py local
 
 ## 🔌 API Endpoints
 
-Once the server is running, you can access it via REST API:
+Once the server is running, you can access it via REST API or the web interface:
+
+### Web Interface
+```
+http://localhost:8001/
+```
+Opens the Windows 95 style control panel with:
+- **Chat Tab** - Real-time conversation with streaming responses
+- **Models Tab** - Download models directly from HuggingFace with progress bars
+- **Settings Tab** - Configure temperature, tokens, and sampling parameters
+- **Instance Sidebar** - Manage multiple LLM server instances
 
 ### Root Endpoint
 ```bash
-GET http://localhost:8000/
+GET http://localhost:8001/
 ```
-Returns basic server information and status.
+Returns the web interface HTML (or JSON if accessed programmatically).
 
 ### Health Check
 ```bash
-GET http://localhost:8000/health
+GET http://localhost:8001/health
 ```
 
 **Response:**
@@ -384,6 +406,27 @@ GET http://localhost:8000/health
   }
 }
 ```
+
+### List Models
+```bash
+GET http://localhost:8001/list-models
+```
+Returns all available GGUF model files in the models directory.
+
+### Download Model (with Progress Tracking)
+```bash
+POST http://localhost:8001/download-model?model_id=1
+GET http://localhost:8001/download-progress/1
+```
+Downloads a model with real-time progress updates via Server-Sent Events.
+
+### Instance Management
+```bash
+POST http://localhost:8001/create-instance
+POST http://localhost:8001/start-instance/{instance_id}
+POST http://localhost:8001/stop-instance/{instance_id}
+```
+Create and manage multiple LLM server instances on different ports.
 
 ### Generate Response (Standard)
 ```bash

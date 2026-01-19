@@ -63,6 +63,11 @@ import logging
 from typing import Optional, Dict, Any, List, Generator
 from pathlib import Path
 from dataclasses import dataclass, field
+import asyncio
+import json
+import threading
+import subprocess
+from queue import Queue
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -78,6 +83,10 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global progress tracking
+download_progress = {}
+progress_queues = {}
 
 
 @dataclass
@@ -430,6 +439,10 @@ class LLMServer:
         
         @self.app.get("/")
         async def root():
+            # Serve the web interface
+            static_path = Path(__file__).parent / "static" / "index.html"
+            if static_path.exists():
+                return FileResponse(str(static_path))
             return {
                 "message": "Local LLM Server",
                 "model": str(self.model_path),
@@ -506,6 +519,236 @@ class LLMServer:
             except Exception as e:
                 logger.error(f"Error processing stream request: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/download-progress/{model_id}")
+        async def download_progress_stream(model_id: str):
+            """Stream download progress updates via Server-Sent Events."""
+            async def event_generator():
+                # Get or create queue for this model
+                if model_id not in progress_queues:
+                    progress_queues[model_id] = Queue()
+                
+                queue = progress_queues[model_id]
+                logger.info(f"Client connected to progress stream for model {model_id}")
+                
+                try:
+                    while True:
+                        # Check for progress updates
+                        if not queue.empty():
+                            data = queue.get()
+                            logger.info(f"Sending progress: {data}")
+                            yield f"data: {json.dumps(data)}\n\n"
+                            
+                            # Stop if download is complete or errored
+                            if data.get('status') in ['complete', 'error']:
+                                logger.info(f"Download {data.get('status')} for model {model_id}")
+                                break
+                        
+                        await asyncio.sleep(0.1)  # Check more frequently
+                except asyncio.CancelledError:
+                    # Client disconnected
+                    logger.info(f"Client disconnected from progress stream for model {model_id}")
+                    raise
+                finally:
+                    # Clean up queue after some time
+                    await asyncio.sleep(5)
+                    if model_id in progress_queues:
+                        del progress_queues[model_id]
+            
+            return StreamingResponse(
+                event_generator(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"
+                }
+            )
+        
+        @self.app.post("/download-model")
+        async def download_model(model_id: str):
+            """Download a model from HuggingFace with progress tracking."""
+            try:
+                import requests
+                from model_downloader import ModelDownloader
+                
+                downloader = ModelDownloader(models_dir="./models")
+                
+                # Validate model ID
+                if model_id not in downloader.POPULAR_MODELS:
+                    raise HTTPException(status_code=400, detail=f"Invalid model ID: {model_id}")
+                
+                model_info = downloader.POPULAR_MODELS[model_id]
+                
+                # Don't allow custom URL downloads via API (security)
+                if model_id == "8":
+                    raise HTTPException(status_code=400, detail="Custom URL downloads not supported via API")
+                
+                # Initialize progress queue if not exists
+                if model_id not in progress_queues:
+                    progress_queues[model_id] = Queue()
+                
+                # Start download in background thread
+                def download_with_progress():
+                    try:
+                        logger.info(f"Starting download of {model_info['name']}")
+                        
+                        # Get download URL from HuggingFace
+                        url = f"https://huggingface.co/{model_info['repo']}/resolve/main/{model_info['file']}"
+                        output_path = Path("./models") / model_info['file']
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        logger.info(f"Downloading from: {url}")
+                        
+                        # Download with progress tracking
+                        response = requests.get(url, stream=True, timeout=30)
+                        response.raise_for_status()
+                        
+                        total_size = int(response.headers.get('content-length', 0))
+                        downloaded = 0
+                        
+                        logger.info(f"Total size: {total_size / 1024 / 1024:.1f} MB")
+                        
+                        # Send initial progress
+                        if model_id in progress_queues:
+                            progress_queues[model_id].put({
+                                'status': 'progress',
+                                'percent': 0,
+                                'downloaded': '0.0 MB',
+                                'total': f"{total_size / 1024 / 1024:.1f} MB"
+                            })
+                        
+                        with open(output_path, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    
+                                    # Update progress every 1MB or so
+                                    if total_size > 0 and downloaded % (1024 * 1024) < 8192:
+                                        percent = (downloaded / total_size) * 100
+                                        progress_data = {
+                                            'status': 'progress',
+                                            'percent': percent,
+                                            'downloaded': f"{downloaded / 1024 / 1024:.1f} MB",
+                                            'total': f"{total_size / 1024 / 1024:.1f} MB"
+                                        }
+                                        
+                                        logger.info(f"Progress: {percent:.1f}%")
+                                        
+                                        if model_id in progress_queues:
+                                            progress_queues[model_id].put(progress_data)
+                        
+                        # Download complete
+                        logger.info(f"Download complete: {output_path}")
+                        
+                        complete_data = {
+                            'status': 'complete',
+                            'model_name': model_info['name'],
+                            'model_path': str(output_path)
+                        }
+                        
+                        if model_id in progress_queues:
+                            progress_queues[model_id].put(complete_data)
+                        
+                    except Exception as e:
+                        logger.error(f"Download error: {e}")
+                        error_data = {
+                            'status': 'error',
+                            'message': str(e)
+                        }
+                        
+                        if model_id in progress_queues:
+                            progress_queues[model_id].put(error_data)
+                
+                # Wait a bit for EventSource to connect
+                await asyncio.sleep(0.5)
+                
+                # Start download in background
+                thread = threading.Thread(target=download_with_progress, daemon=True)
+                thread.start()
+                
+                return {"status": "started", "message": "Download started"}
+                
+            except ImportError as e:
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Required libraries not installed. Run: pip install requests"
+                )
+            except Exception as e:
+                logger.error(f"Download error: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/list-models")
+        async def list_models():
+            """List all available model files."""
+            try:
+                models_dir = Path("./models")
+                if not models_dir.exists():
+                    return {"models": []}
+                
+                model_files = list(models_dir.glob("**/*.gguf"))
+                return {"models": [str(m.relative_to(models_dir)) for m in model_files]}
+            except Exception as e:
+                logger.error(f"Error listing models: {e}")
+                return {"models": []}
+        
+        @self.app.post("/create-instance")
+        async def create_instance(request: dict):
+            """Create a new LLM instance on a different port."""
+            try:
+                name = request.get('name')
+                port = request.get('port')
+                model = request.get('model')
+                
+                if not all([name, port, model]):
+                    raise HTTPException(status_code=400, detail="Missing required fields")
+                
+                instance_id = f"instance-{port}"
+                
+                # Start new instance in background
+                def start_instance():
+                    import subprocess
+                    model_path = Path("./models") / model
+                    if not model_path.exists():
+                        logger.error(f"Model not found: {model_path}")
+                        return
+                    
+                    cmd = [
+                        sys.executable,
+                        "llm_server.py",
+                        str(model_path),
+                        str(port)
+                    ]
+                    
+                    logger.info(f"Starting instance {instance_id}: {' '.join(cmd)}")
+                    subprocess.Popen(
+                        cmd,
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
+                    )
+                
+                thread = threading.Thread(target=start_instance, daemon=True)
+                thread.start()
+                
+                return {
+                    "status": "success",
+                    "instance_id": instance_id,
+                    "message": f"Instance {name} starting on port {port}"
+                }
+                
+            except Exception as e:
+                logger.error(f"Error creating instance: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/start-instance/{instance_id}")
+        async def start_instance(instance_id: str):
+            """Start an existing instance."""
+            return {"status": "success", "message": "Start functionality requires instance management system"}
+        
+        @self.app.post("/stop-instance/{instance_id}")
+        async def stop_instance(instance_id: str):
+            """Stop a running instance."""
+            return {"status": "success", "message": "Stop functionality requires instance management system"}
     
     def start(self, host: str = "0.0.0.0", port: int = 8000):
         """

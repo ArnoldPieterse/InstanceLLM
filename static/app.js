@@ -1,4 +1,5 @@
 // InstanceLLM Web Interface
+console.log('InstanceLLM Web Interface loaded');
 
 const API_BASE = 'http://localhost:8001';
 
@@ -11,6 +12,8 @@ let currentSettings = {
 };
 
 let selectedModel = null;
+let instances = [];
+let activeInstance = null;
 
 // Available models (matching model_downloader.py)
 const AVAILABLE_MODELS = {
@@ -67,31 +70,54 @@ const AVAILABLE_MODELS = {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded - initializing...');
+    loadInstances();
     checkServerStatus();
     loadModelsList();
     setupSettingsListeners();
+    setupEnterKeyListener();
     
     // Auto-refresh status every 5 seconds
     setInterval(checkServerStatus, 5000);
+    setInterval(updateInstanceStatuses, 5000);
+    
+    console.log('Initialization complete');
 });
 
-// Tab switching
-function switchTab(tabName) {
+// Tab switching - GLOBAL FUNCTION
+window.switchTab = function(tabName) {
+    console.log('switchTab called:', tabName);
     // Update buttons
     const buttons = document.querySelectorAll('menu[role="tablist"] button');
-    buttons.forEach(btn => btn.setAttribute('aria-selected', 'false'));
-    event.target.setAttribute('aria-selected', 'true');
+    buttons.forEach(btn => {
+        btn.setAttribute('aria-selected', 'false');
+        btn.classList.remove('active');
+    });
+    
+    const activeButton = document.querySelector(`button[onclick*="${tabName}"]`);
+    if (activeButton) {
+        activeButton.setAttribute('aria-selected', 'true');
+        activeButton.classList.add('active');
+    }
     
     // Update panels
     const panels = document.querySelectorAll('article[role="tabpanel"]');
-    panels.forEach(panel => panel.style.display = 'none');
-    document.getElementById(`tab-${tabName}`).style.display = 'block';
+    panels.forEach(panel => {
+        panel.style.display = 'none';
+        panel.classList.remove('active');
+    });
+    
+    const activePanel = document.getElementById(`tab-${tabName}`);
+    if (activePanel) {
+        activePanel.style.display = 'block';
+        activePanel.classList.add('active');
+    }
     
     // Load models when switching to models tab
     if (tabName === 'models') {
         loadModelsList();
     }
-}
+};
 
 // Check server status
 async function checkServerStatus() {
@@ -151,38 +177,134 @@ function selectModelTile(tile) {
     tile.classList.add('selected');
 }
 
-// Select model (show details)
-function selectModel(id) {
+// Select model (show details) - GLOBAL FUNCTION
+window.selectModel = function(id) {
+    console.log('selectModel called:', id);
     const model = AVAILABLE_MODELS[id];
     alert(`Model: ${model.name}\n\nSize: ${model.size}\nRepository: ${model.repo}\nFile: ${model.file}\n\nDescription:\n${model.description}`);
-}
+};
 
-// Download model
-async function downloadModel(id) {
+// Download model - GLOBAL FUNCTION
+window.downloadModel = async function(id) {
+    console.log('downloadModel called:', id);
     const model = AVAILABLE_MODELS[id];
     
-    if (!confirm(`Download ${model.name} (${model.size})?\n\nThis will take several minutes.`)) {
+    if (!confirm(`Download ${model.name} (${model.size})?\n\nThis will take several minutes depending on your internet connection.`)) {
         return;
     }
     
     const statusDiv = document.getElementById('download-status');
-    statusDiv.innerHTML = `Downloading ${model.name}...<br>Size: ${model.size}<br>Please wait...`;
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar-inner');
+    const progressText = document.getElementById('progress-text');
+    const downloadButton = event.target;
     
-    // Note: Actual download would need to be implemented on the server side
-    // This is a placeholder showing the UI interaction
-    alert(`Download feature requires server-side implementation.\n\nTo download manually:\n1. Use model_downloader.py\n2. Run: python model_downloader.py\n3. Select option ${id}`);
+    // Disable button during download
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'Downloading...';
     
-    statusDiv.innerHTML = 'Download requires model_downloader.py - see instructions';
-}
+    // Show progress bar
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressText.textContent = '0%';
+    
+    statusDiv.innerHTML = `<strong>Downloading ${model.name}...</strong><br>Size: ${model.size}<br><em>Please wait, this may take several minutes...</em>`;
+    
+    try {
+        // Start listening to progress updates via EventSource FIRST
+        const eventSource = new EventSource(`${API_BASE}/download-progress/${id}`);
+        console.log('EventSource created for model:', id);
+        
+        eventSource.onopen = function() {
+            console.log('EventSource connection opened');
+        };
+        
+        eventSource.onmessage = function(event) {
+            console.log('Progress update received:', event.data);
+            const data = JSON.parse(event.data);
+            
+            if (data.status === 'progress') {
+                const percent = Math.round(data.percent);
+                progressBar.style.width = percent + '%';
+                progressText.textContent = `${percent}% - ${data.downloaded} / ${data.total}`;
+                console.log(`Progress: ${percent}%`);
+            } else if (data.status === 'complete') {
+                console.log('Download complete');
+                eventSource.close();
+                progressBar.style.width = '100%';
+                progressText.textContent = '100% - Complete';
+                
+                statusDiv.innerHTML = `<strong style="color: green;">✓ Download Complete!</strong><br>Model: ${data.model_name}<br>Path: ${data.model_path}<br><em>You can now restart the server with this model.</em>`;
+                
+                downloadButton.disabled = false;
+                downloadButton.textContent = 'Downloaded ✓';
+                downloadButton.style.backgroundColor = '#90EE90';
+                
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                }, 3000);
+                
+                alert(`Download complete!\n\n${data.model_name}\n\nRestart the server to use this model.`);
+            } else if (data.status === 'error') {
+                console.error('Download error:', data.message);
+                eventSource.close();
+                throw new Error(data.message);
+            }
+        };
+        
+        eventSource.onerror = function(error) {
+            console.error('EventSource error:', error);
+            eventSource.close();
+            
+            statusDiv.innerHTML = `<strong style="color: red;">✗ Download Failed</strong><br>Error: Connection lost<br><br>Check server console for details.`;
+            
+            progressContainer.style.display = 'none';
+            downloadButton.disabled = false;
+            downloadButton.textContent = 'Download';
+        };
+        
+        // Wait a moment for EventSource to connect, then trigger the download
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log('Triggering download via POST request');
+        const response = await fetch(`${API_BASE}/download-model?model_id=${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            eventSource.close();
+            throw new Error(error.detail || 'Failed to start download');
+        }
+        
+        const result = await response.json();
+        console.log('Download started:', result);
+        
+    } catch (error) {
+        console.error('Download error:', error);
+        statusDiv.innerHTML = `<strong style="color: red;">✗ Download Failed</strong><br>Error: ${error.message}<br><br>If huggingface_hub is not installed, run:<br><code>pip install huggingface_hub</code>`;
+        
+        progressContainer.style.display = 'none';
+        downloadButton.disabled = false;
+        downloadButton.textContent = 'Download';
+        
+        alert(`Download failed: ${error.message}\n\nCheck the download status panel for details.`);
+    }
+};
 
-// Send prompt
-async function sendPrompt() {
+// Send prompt - GLOBAL FUNCTION
+window.sendPrompt = async function() {
+    console.log('sendPrompt called');
     const input = document.getElementById('prompt-input');
     const output = document.getElementById('chat-output');
     const streaming = document.getElementById('streaming-mode').checked;
     
     const prompt = input.value.trim();
-    if (!prompt) return;
+    if (!prompt) {
+        console.log('Empty prompt, returning');
+        return;
+    }
     
     // Add user message
     addChatMessage('user', prompt);
@@ -197,7 +319,7 @@ async function sendPrompt() {
     } catch (error) {
         addChatMessage('error', `Error: ${error.message}`);
     }
-}
+};
 
 // Normal prompt
 async function sendNormalPrompt(prompt, output) {
@@ -267,16 +389,17 @@ function addChatMessage(type, text) {
 }
 
 // Enter key to send
-document.addEventListener('DOMContentLoaded', () => {
+function setupEnterKeyListener() {
     const input = document.getElementById('prompt-input');
     if (input) {
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                sendPrompt();
+                window.sendPrompt();
             }
         });
+        console.log('Enter key listener attached');
     }
-});
+}
 
 // Settings listeners
 function setupSettingsListeners() {
@@ -305,8 +428,9 @@ function setupSettingsListeners() {
     });
 }
 
-// Reset settings
-function resetSettings() {
+// Reset settings - GLOBAL FUNCTION
+window.resetSettings = function() {
+    console.log('resetSettings called');
     document.getElementById('temperature').value = 0.8;
     document.getElementById('temp-value').textContent = '0.8';
     document.getElementById('max-tokens').value = 512;
@@ -322,13 +446,14 @@ function resetSettings() {
     };
     
     alert('Settings reset to defaults');
-}
+};
 
-// Save settings
-function saveSettings() {
+// Save settings - GLOBAL FUNCTION
+window.saveSettings = function() {
+    console.log('saveSettings called');
     localStorage.setItem('llm_settings', JSON.stringify(currentSettings));
     alert('Settings saved!');
-}
+};
 
 // Load saved settings
 document.addEventListener('DOMContentLoaded', () => {
@@ -343,3 +468,269 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('top-k').value = currentSettings.top_k;
     }
 });
+
+// ========================================
+// INSTANCE MANAGEMENT
+// ========================================
+
+// Load instances from localStorage
+function loadInstances() {
+    const saved = localStorage.getItem('llm_instances');
+    if (saved) {
+        instances = JSON.parse(saved);
+    } else {
+        // Add default instance (current server)
+        instances = [{
+            id: 'default',
+            name: 'Main Server',
+            url: API_BASE,
+            port: 8001,
+            type: 'local',
+            status: 'unknown'
+        }];
+        saveInstances();
+    }
+    
+    renderInstances();
+    if (instances.length > 0) {
+        selectInstance(instances[0].id);
+    }
+}
+
+// Save instances to localStorage
+function saveInstances() {
+    localStorage.setItem('llm_instances', JSON.stringify(instances));
+}
+
+// Render instance tiles
+function renderInstances() {
+    const container = document.getElementById('instances-list');
+    container.innerHTML = '';
+    
+    instances.forEach(instance => {
+        const tile = document.createElement('div');
+        tile.className = `instance-tile ${instance.id === (activeInstance?.id) ? 'active' : ''}`;
+        tile.dataset.instanceId = instance.id;
+        
+        const statusClass = instance.status === 'healthy' ? 'online' : 'offline';
+        const statusText = instance.status === 'healthy' ? 'Online' : 'Offline';
+        
+        tile.innerHTML = `
+            <div class="instance-name">${instance.name}</div>
+            <div class="instance-port">Port: ${instance.port || instance.url}</div>
+            <div class="instance-status">
+                <span class="status-dot ${statusClass}"></span>
+                <span>${statusText}</span>
+            </div>
+            <div class="instance-controls">
+                ${instance.type === 'local' ? `
+                    <button onclick="event.stopPropagation(); startInstance('${instance.id}')" title="Start">▶</button>
+                    <button onclick="event.stopPropagation(); stopInstance('${instance.id}')" title="Stop">■</button>
+                ` : ''}
+                <button onclick="event.stopPropagation(); removeInstance('${instance.id}')" title="Remove">×</button>
+            </div>
+        `;
+        
+        tile.addEventListener('click', () => selectInstance(instance.id));
+        container.appendChild(tile);
+    });
+}
+
+// Select an instance
+function selectInstance(instanceId) {
+    const instance = instances.find(i => i.id === instanceId);
+    if (!instance) return;
+    
+    activeInstance = instance;
+    
+    // Update API_BASE for the active instance
+    // Note: This would need more work to properly switch contexts
+    
+    // Update UI
+    renderInstances();
+    checkServerStatus();
+}
+
+// Update instance statuses
+async function updateInstanceStatuses() {
+    for (const instance of instances) {
+        try {
+            const response = await fetch(`${instance.url}/health`, { timeout: 2000 });
+            const data = await response.json();
+            instance.status = data.status;
+        } catch (error) {
+            instance.status = 'offline';
+        }
+    }
+    renderInstances();
+}
+
+// Show add instance dialog
+window.showAddInstanceDialog = function() {
+    document.getElementById('add-instance-dialog').style.display = 'flex';
+    
+    // Populate model dropdown
+    const modelSelect = document.getElementById('instance-model');
+    modelSelect.innerHTML = '<option value="">Select model...</option>';
+    
+    fetch(`${API_BASE}/list-models`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.models) {
+                data.models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model.split('/').pop();
+                    modelSelect.appendChild(option);
+                });
+            }
+        })
+        .catch(err => console.error('Failed to load models:', err));
+};
+
+// Close add instance dialog
+window.closeAddInstanceDialog = function() {
+    document.getElementById('add-instance-dialog').style.display = 'none';
+};
+
+// Toggle instance type fields
+window.toggleInstanceType = function() {
+    const type = document.querySelector('input[name="instance-type"]:checked').value;
+    document.getElementById('new-instance-fields').style.display = type === 'new' ? 'block' : 'none';
+    document.getElementById('custom-instance-fields').style.display = type === 'custom' ? 'block' : 'none';
+};
+
+// Add instance
+window.addInstance = async function() {
+    const type = document.querySelector('input[name="instance-type"]:checked').value;
+    
+    if (type === 'new') {
+        const name = document.getElementById('instance-name').value.trim();
+        const port = parseInt(document.getElementById('instance-port').value);
+        const model = document.getElementById('instance-model').value;
+        
+        if (!name || !port || !model) {
+            alert('Please fill in all fields');
+            return;
+        }
+        
+        // Create new instance via API
+        try {
+            const response = await fetch(`${API_BASE}/create-instance`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, port, model })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to create instance');
+            }
+            
+            const result = await response.json();
+            
+            instances.push({
+                id: result.instance_id || `instance-${Date.now()}`,
+                name: name,
+                url: `http://localhost:${port}`,
+                port: port,
+                type: 'local',
+                model: model,
+                status: 'offline'
+            });
+            
+        } catch (error) {
+            alert(`Failed to create instance: ${error.message}`);
+            return;
+        }
+        
+    } else {
+        const name = document.getElementById('custom-name').value.trim();
+        const url = document.getElementById('custom-url').value.trim();
+        
+        if (!name || !url) {
+            alert('Please fill in all fields');
+            return;
+        }
+        
+        // Extract port from URL
+        const portMatch = url.match(/:(\d+)/);
+        const port = portMatch ? parseInt(portMatch[1]) : 80;
+        
+        instances.push({
+            id: `custom-${Date.now()}`,
+            name: name,
+            url: url,
+            port: port,
+            type: 'custom',
+            status: 'unknown'
+        });
+    }
+    
+    saveInstances();
+    renderInstances();
+    closeAddInstanceDialog();
+    
+    // Check status of new instance
+    updateInstanceStatuses();
+};
+
+// Remove instance
+window.removeInstance = async function(instanceId) {
+    const instance = instances.find(i => i.id === instanceId);
+    if (!instance) return;
+    
+    if (!confirm(`Remove instance "${instance.name}"?`)) return;
+    
+    // If local instance, stop it first
+    if (instance.type === 'local') {
+        try {
+            await fetch(`${API_BASE}/stop-instance/${instanceId}`, { method: 'POST' });
+        } catch (error) {
+            console.error('Failed to stop instance:', error);
+        }
+    }
+    
+    instances = instances.filter(i => i.id !== instanceId);
+    
+    // If active instance was removed, select first remaining
+    if (activeInstance?.id === instanceId && instances.length > 0) {
+        selectInstance(instances[0].id);
+    }
+    
+    saveInstances();
+    renderInstances();
+};
+
+// Start instance
+window.startInstance = async function(instanceId) {
+    try {
+        const response = await fetch(`${API_BASE}/start-instance/${instanceId}`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to start instance');
+        }
+        
+        setTimeout(updateInstanceStatuses, 1000);
+    } catch (error) {
+        alert(`Failed to start instance: ${error.message}`);
+    }
+};
+
+// Stop instance
+window.stopInstance = async function(instanceId) {
+    try {
+        const response = await fetch(`${API_BASE}/stop-instance/${instanceId}`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to stop instance');
+        }
+        
+        setTimeout(updateInstanceStatuses, 1000);
+    } catch (error) {
+        alert(`Failed to stop instance: ${error.message}`);
+    }
+};

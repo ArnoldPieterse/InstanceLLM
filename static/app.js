@@ -979,19 +979,36 @@ window.showAddInstanceDialog = function() {
     const modelSelect = document.getElementById('instance-model');
     modelSelect.innerHTML = '<option value="">Select model...</option>';
     
+    // Always fetch models from the main server (API_BASE), not from the active instance
     fetch(`${API_BASE}/list-models`)
         .then(r => r.json())
         .then(data => {
-            if (data.models) {
+            console.log('Models fetched:', data);
+            if (data.models && data.models.length > 0) {
                 data.models.forEach(model => {
                     const option = document.createElement('option');
                     option.value = model;
                     option.textContent = model.split('/').pop();
                     modelSelect.appendChild(option);
                 });
+                console.log('Added', data.models.length, 'models to dropdown');
+            } else {
+                console.warn('No models found');
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "No models found - download from Models tab";
+                option.disabled = true;
+                modelSelect.appendChild(option);
             }
         })
-        .catch(err => console.error('Failed to load models:', err));
+        .catch(err => {
+            console.error('Failed to load models:', err);
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "Error loading models";
+            option.disabled = true;
+            modelSelect.appendChild(option);
+        });
 };
 
 // Scan network for InstanceLLM servers

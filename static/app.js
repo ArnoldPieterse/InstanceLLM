@@ -978,7 +978,8 @@ function selectInstance(instanceId) {
     // Clear any previous selection
     activeInstance = instance;
     console.log('Selected instance:', instance.name, 'with id:', instance.id);
-    console.log('All instance IDs:', instances.map(i => ({name: i.name, id: i.id})));
+    console.log('Instance has subroutines:', instance.subroutines);
+    console.log('All instance IDs:', instances.map(i => ({name: i.name, id: i.id, subroutines: i.subroutines})));
     
     // Update UI to reflect selected instance
     renderInstances();

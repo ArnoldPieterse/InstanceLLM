@@ -73,6 +73,7 @@ const AVAILABLE_MODELS = {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded - initializing...');
     loadInstances();
+    updateInstanceStatuses(); // Fetch IPs immediately
     checkServerStatus();
     loadModelsList();
     setupSettingsListeners();
@@ -566,13 +567,28 @@ function loadInstances() {
     const saved = localStorage.getItem('llm_instances');
     if (saved) {
         instances = JSON.parse(saved);
+        
+        // Update default instance URL and port if needed
+        const defaultInstance = instances.find(i => i.id === 'default');
+        if (defaultInstance) {
+            defaultInstance.url = API_BASE;
+            defaultInstance.port = 8000;
+            // Update local_ip to current hostname if not already set
+            if (!defaultInstance.local_ip) {
+                defaultInstance.local_ip = window.location.hostname;
+            }
+            // Ensure default instance has a model
+            if (!defaultInstance.model) {
+                defaultInstance.model = 'Llama-3.2-3B-Instruct-Q4_K_M.gguf';
+            }
+        }
     } else {
         // Add default instance (current server)
         instances = [{
             id: 'default',
             name: 'Main Server',
             url: API_BASE,
-            port: 8001,
+            port: 8000,
             type: 'local',
             status: 'unknown',
             model: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf'  // Default model
@@ -604,8 +620,21 @@ function renderInstances() {
         const statusClass = instance.status === 'healthy' ? 'online' : 'offline';
         const statusText = instance.status === 'healthy' ? 'Online' : 'Offline';
         
-        // Display IP:port instead of just port
-        const displayUrl = instance.local_ip ? `${instance.local_ip}:${instance.port}` : `localhost:${instance.port}`;
+        // Display URL with IP if available, otherwise use hostname from current page
+        let displayUrl;
+        if (instance.local_ip) {
+            displayUrl = `${instance.local_ip}:${instance.port}`;
+        } else if (instance.url) {
+            // Extract hostname from URL
+            try {
+                const urlObj = new URL(instance.url);
+                displayUrl = `${urlObj.hostname}:${instance.port}`;
+            } catch {
+                displayUrl = `${window.location.hostname}:${instance.port}`;
+            }
+        } else {
+            displayUrl = `${window.location.hostname}:${instance.port}`;
+        }
         
         tile.innerHTML = `
             <div class="instance-name">${instance.name}</div>
@@ -615,11 +644,13 @@ function renderInstances() {
                 <span>${statusText}</span>
             </div>
             <div class="instance-controls">
-                ${instance.type === 'local' ? `
+                ${instance.type === 'local' && instance.id !== 'default' ? `
                     <button onclick="event.stopPropagation(); startInstance('${instance.id}')" title="Start">▶</button>
                     <button onclick="event.stopPropagation(); stopInstance('${instance.id}')" title="Stop">■</button>
                 ` : ''}
-                <button onclick="event.stopPropagation(); removeInstance('${instance.id}')" title="Remove">×</button>
+                ${instance.id !== 'default' ? `
+                    <button onclick="event.stopPropagation(); removeInstance('${instance.id}')" title="Remove">×</button>
+                ` : ''}
             </div>
         `;
         
@@ -652,12 +683,15 @@ async function updateInstanceStatuses() {
             instance.status = data.status;
             instance.local_ip = data.local_ip;
             instance.resources = data.resources;
+            console.log(`Instance ${instance.name} - IP: ${instance.local_ip}, Status: ${instance.status}`);
         } catch (error) {
             instance.status = 'offline';
+            console.log(`Instance ${instance.name} - Offline`);
         }
     }
     renderInstances();
     updateResourceDisplay();
+    saveInstances(); // Save the updated IP addresses
 }
 
 // Update resource display
@@ -746,15 +780,19 @@ window.addInstance = async function() {
             
             const result = await response.json();
             
+            // Get the IP from the main instance or use API_BASE
+            const mainInstance = instances.find(i => i.id === 'default');
+            const baseIp = mainInstance?.local_ip || window.location.hostname;
+            
             instances.push({
                 id: result.instance_id || `instance-${Date.now()}`,
                 name: name,
-                url: `http://localhost:${port}`,
+                url: `http://${baseIp}:${port}`,
                 port: port,
                 type: 'local',
                 model: model,
                 status: 'offline',
-                local_ip: result.local_ip
+                local_ip: baseIp
             });
             
             // Show resource warning if an instance was paused
@@ -833,6 +871,12 @@ window.startInstance = async function(instanceId) {
         return;
     }
     
+    // Don't allow starting the default instance (it's already running)
+    if (instance.id === 'default') {
+        alert('The Main Server is already running.\n\nThis is the server hosting this web interface.');
+        return;
+    }
+    
     if (instance.status === 'healthy') {
         alert('Instance is already running');
         return;
@@ -879,6 +923,12 @@ window.stopInstance = async function(instanceId) {
     const instance = instances.find(i => i.id === instanceId);
     if (!instance) {
         alert('Instance not found');
+        return;
+    }
+    
+    // Don't allow stopping the default instance (it's hosting the web interface)
+    if (instance.id === 'default') {
+        alert('Cannot stop the Main Server.\n\nThis server is hosting the web interface you\'re using.\nTo stop it, close the terminal window or press Ctrl+C.');
         return;
     }
     

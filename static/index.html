@@ -270,12 +270,24 @@
                 <div class="sunken-panel" style="padding: 8px; background: #c0c0c0;">
                     <div style="font-weight: bold; margin-bottom: 6px; font-size: 11px;">API Commands:</div>
                     <div style="font-family: 'Courier New', monospace; font-size: 10px; line-height: 1.6;">
+                        <div style="color: #000080; font-weight: bold; margin-top: 4px;">Core:</div>
                         <div><strong>Health:</strong> GET /health</div>
                         <div><strong>Prompt:</strong> POST /prompt {"prompt": "text", "temperature": 0.8}</div>
                         <div><strong>Stream:</strong> POST /stream {"prompt": "text"}</div>
                         <div><strong>Models:</strong> GET /list-models</div>
-                        <div><strong>Start Instance:</strong> POST /start-instance {"instance_id": "id", "port": 8001, "model": "model.gguf"}</div>
-                        <div><strong>Stop Instance:</strong> POST /stop-instance {"instance_id": "id", "port": 8001}</div>
+                        <div><strong>Resources:</strong> GET /resources</div>
+                        
+                        <div style="color: #000080; font-weight: bold; margin-top: 6px;">Instances:</div>
+                        <div><strong>Create:</strong> POST /create-instance {"name": "My LLM", "port": 8002, "model": "model.gguf"}</div>
+                        <div><strong>Start:</strong> POST /start-instance {"instance_id": "id", "port": 8001, "model": "model.gguf"}</div>
+                        <div><strong>Stop:</strong> POST /stop-instance {"instance_id": "id", "port": 8001}</div>
+                        
+                        <div style="color: #000080; font-weight: bold; margin-top: 6px;">Network:</div>
+                        <div><strong>Server Info:</strong> GET /api/info</div>
+                        <div><strong>Discover:</strong> GET /api/discover</div>
+                        
+                        <div style="color: #000080; font-weight: bold; margin-top: 6px;">Workspace:</div>
+                        <div><strong>View Files:</strong> GET /workspace</div>
                     </div>
                 </div>
             </section>

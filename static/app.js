@@ -612,7 +612,17 @@ function getSubroutinePrompt() {
     };
     
     const instructions = activeInstance.subroutines
-        .map(sub => prompts[sub])
+        .map(sub => {
+            // Check if it's a custom subroutine
+            if (sub.startsWith('custom:')) {
+                const customName = sub.substring(7); // Remove 'custom:' prefix
+                if (activeInstance.customSubroutines && activeInstance.customSubroutines[customName]) {
+                    return activeInstance.customSubroutines[customName];
+                }
+                return null;
+            }
+            return prompts[sub];
+        })
         .filter(p => p)
         .join(' ');
     
@@ -903,9 +913,14 @@ function renderInstances() {
                 'concise': 'BRIEF',
                 'verbose': 'DETAIL'
             };
-            subroutineBadges = instance.subroutines.map(sub => 
-                `<span style="background: #000080; color: white; padding: 1px 3px; font-size: 8px; border-radius: 2px; margin-left: 2px;" title="${sub}">${badgeIcons[sub] || sub.toUpperCase()}</span>`
-            ).join('');
+            subroutineBadges = instance.subroutines.map(sub => {
+                // Handle custom subroutines
+                if (sub.startsWith('custom:')) {
+                    const customName = sub.substring(7);
+                    return `<span style="background: #800080; color: white; padding: 1px 3px; font-size: 8px; border-radius: 2px; margin-left: 2px;" title="Custom: ${customName}">${customName.substring(0, 6).toUpperCase()}</span>`;
+                }
+                return `<span style="background: #000080; color: white; padding: 1px 3px; font-size: 8px; border-radius: 2px; margin-left: 2px;" title="${sub}">${badgeIcons[sub] || sub.toUpperCase()}</span>`;
+            }).join('');
         }
         
         tile.innerHTML = `
@@ -1507,16 +1522,24 @@ function loadSubroutinesTab() {
     // Update instance name
     document.getElementById('subroutine-instance-name').textContent = activeInstance.name;
     
+    // Ensure customSubroutines object exists
+    if (!activeInstance.customSubroutines) {
+        activeInstance.customSubroutines = {};
+    }
+    
     // Load current subroutines
     const currentSubroutines = activeInstance.subroutines || [];
     
-    // Update checkboxes
+    // Update checkboxes for predefined subroutines
     document.getElementById('sub-json').checked = currentSubroutines.includes('json');
     document.getElementById('sub-xml').checked = currentSubroutines.includes('xml');
     document.getElementById('sub-markdown').checked = currentSubroutines.includes('markdown');
     document.getElementById('sub-code').checked = currentSubroutines.includes('code');
     document.getElementById('sub-concise').checked = currentSubroutines.includes('concise');
     document.getElementById('sub-verbose').checked = currentSubroutines.includes('verbose');
+    
+    // Render custom subroutines
+    renderCustomSubroutines();
     
     // Update active instructions display
     updateActiveInstructions();
@@ -1534,6 +1557,8 @@ function updateActiveInstructions() {
     };
     
     const selected = [];
+    
+    // Check predefined subroutines
     ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
         const checkbox = document.getElementById(id);
         if (checkbox && checkbox.checked) {
@@ -1544,10 +1569,24 @@ function updateActiveInstructions() {
         }
     });
     
+    // Check custom subroutines
+    if (activeInstance && activeInstance.customSubroutines) {
+        Object.keys(activeInstance.customSubroutines).forEach(name => {
+            const checkbox = document.getElementById(`custom-sub-${name}`);
+            if (checkbox && checkbox.checked) {
+                const instruction = activeInstance.customSubroutines[name];
+                selected.push(`${name.toUpperCase()}: ${instruction}`);
+            }
+        });
+    }
+    
     const instructionsDiv = document.getElementById('active-instructions');
     if (selected.length === 0) {
         instructionsDiv.innerHTML = 'No subroutines selected - LLM will respond normally';
     } else {
+        instructionsDiv.innerHTML = '<strong>System will prepend:</strong><br>' + selected.join('<br>');
+    }
+}
         instructionsDiv.innerHTML = '<strong>System will prepend:</strong><br>' + selected.join('<br>');
     }
 }
@@ -1573,7 +1612,7 @@ window.applySubroutines = function() {
         return;
     }
     
-    // Collect selected subroutines
+    // Collect selected predefined subroutines
     const subroutines = [];
     const checkboxMap = {
         'sub-json': 'json',
@@ -1590,6 +1629,16 @@ window.applySubroutines = function() {
             subroutines.push(value);
         }
     });
+    
+    // Add custom subroutines
+    if (activeInstance.customSubroutines) {
+        Object.keys(activeInstance.customSubroutines).forEach(name => {
+            const checkbox = document.getElementById(`custom-sub-${name}`);
+            if (checkbox && checkbox.checked) {
+                subroutines.push(`custom:${name}`);
+            }
+        });
+    }
     
     // Update active instance
     activeInstance.subroutines = subroutines;
@@ -1614,4 +1663,129 @@ window.applySubroutines = function() {
         speak(`Applied ${subroutines.length} subroutine${subroutines.length === 1 ? '' : 's'}`);
         alert(`Applied ${subroutines.length} subroutine(s) to ${activeInstance.name}:\n• ${subroutines.join('\n• ')}`);
     }
+};
+
+// Render custom subroutines list
+function renderCustomSubroutines() {
+    const container = document.getElementById('custom-subroutines-list');
+    if (!container) return;
+    
+    if (!activeInstance || !activeInstance.customSubroutines || Object.keys(activeInstance.customSubroutines).length === 0) {
+        container.innerHTML = '<p style="font-size: 10px; color: #666; font-style: italic;">No custom subroutines yet</p>';
+        return;
+    }
+    
+    const currentSubroutines = activeInstance.subroutines || [];
+    
+    container.innerHTML = '';
+    Object.entries(activeInstance.customSubroutines).forEach(([name, instruction]) => {
+        const isChecked = currentSubroutines.includes(`custom:${name}`);
+        const div = document.createElement('div');
+        div.style.marginBottom = '8px';
+        div.style.padding = '6px';
+        div.style.background = '#ffffff';
+        div.style.border = '1px solid #808080';
+        
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="flex: 1;">
+                    <input type="checkbox" id="custom-sub-${name}" value="custom:${name}" onchange="updateSubroutines()" ${isChecked ? 'checked' : ''}>
+                    <strong>${name.toUpperCase()}</strong> - ${instruction.substring(0, 50)}${instruction.length > 50 ? '...' : ''}
+                </label>
+                <button onclick="removeCustomSubroutine('${name}')" style="min-width: 60px; color: red;">🗑️ Remove</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// Add custom subroutine
+window.addCustomSubroutine = function() {
+    if (!activeInstance) {
+        alert('No instance selected');
+        return;
+    }
+    
+    const nameInput = document.getElementById('custom-sub-name');
+    const instructionInput = document.getElementById('custom-sub-instruction');
+    
+    const name = nameInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const instruction = instructionInput.value.trim();
+    
+    if (!name || !instruction) {
+        alert('Please enter both a name and instruction');
+        return;
+    }
+    
+    if (name.length < 2) {
+        alert('Name must be at least 2 characters');
+        return;
+    }
+    
+    // Initialize customSubroutines if needed
+    if (!activeInstance.customSubroutines) {
+        activeInstance.customSubroutines = {};
+    }
+    
+    // Add to custom subroutines
+    activeInstance.customSubroutines[name] = instruction;
+    
+    // Update in instances array
+    const instanceIndex = instances.findIndex(i => i.id === activeInstance.id);
+    if (instanceIndex !== -1) {
+        if (!instances[instanceIndex].customSubroutines) {
+            instances[instanceIndex].customSubroutines = {};
+        }
+        instances[instanceIndex].customSubroutines[name] = instruction;
+    }
+    
+    // Save
+    saveInstances();
+    
+    // Clear inputs
+    nameInput.value = '';
+    instructionInput.value = '';
+    
+    // Refresh display
+    renderCustomSubroutines();
+    updateActiveInstructions();
+    
+    speak(`Custom subroutine ${name} added`);
+};
+
+// Remove custom subroutine
+window.removeCustomSubroutine = function(name) {
+    if (!activeInstance || !activeInstance.customSubroutines) return;
+    
+    if (!confirm(`Remove custom subroutine "${name}"?`)) {
+        return;
+    }
+    
+    // Remove from customSubroutines
+    delete activeInstance.customSubroutines[name];
+    
+    // Remove from active subroutines list if present
+    if (activeInstance.subroutines) {
+        activeInstance.subroutines = activeInstance.subroutines.filter(s => s !== `custom:${name}`);
+    }
+    
+    // Update in instances array
+    const instanceIndex = instances.findIndex(i => i.id === activeInstance.id);
+    if (instanceIndex !== -1) {
+        if (instances[instanceIndex].customSubroutines) {
+            delete instances[instanceIndex].customSubroutines[name];
+        }
+        if (instances[instanceIndex].subroutines) {
+            instances[instanceIndex].subroutines = instances[instanceIndex].subroutines.filter(s => s !== `custom:${name}`);
+        }
+    }
+    
+    // Save
+    saveInstances();
+    
+    // Refresh display
+    renderCustomSubroutines();
+    updateActiveInstructions();
+    
+    speak(`Custom subroutine ${name} removed`);
 };

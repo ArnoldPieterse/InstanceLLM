@@ -91,6 +91,13 @@ try:
 except ImportError:
     MODEL_DOWNLOADER_AVAILABLE = False
 
+try:
+    from command_executor import CommandExecutor
+    COMMAND_EXECUTOR_AVAILABLE = True
+except ImportError:
+    COMMAND_EXECUTOR_AVAILABLE = False
+    logger.warning("CommandExecutor not available - file system commands will not be executed")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -100,6 +107,9 @@ progress_queues = {}
 
 # Instance management
 running_instances = {}  # {instance_id: {"process": subprocess.Popen, "port": int, "model": str, "name": str}}
+
+# Command executor for safe file system operations
+command_executor = CommandExecutor() if COMMAND_EXECUTOR_AVAILABLE else None
 
 
 def get_local_ip():
@@ -172,6 +182,7 @@ class PromptResponse(BaseModel):
     response: str
     model_path: str
     config_used: Dict[str, Any]
+    commands_executed: Optional[List[Dict[str, Any]]] = Field(None, description="File system commands that were executed")
 
 
 class StartInstanceRequest(BaseModel):
@@ -565,10 +576,17 @@ class LLMServer:
                 else:
                     # Return standard response
                     response_text = self.generate(request.prompt, **override_params)
+                    
+                    # Execute filesystem commands if command executor is available
+                    cmd_results = []
+                    if command_executor:
+                        response_text, cmd_results = command_executor.process_llm_output(response_text)
+                    
                     return PromptResponse(
                         response=response_text,
                         model_path=str(self.model_path),
-                        config_used={**self.config.__dict__, **override_params}
+                        config_used={**self.config.__dict__, **override_params},
+                        commands_executed=cmd_results if cmd_results else None
                     )
             
             except Exception as e:
@@ -589,9 +607,18 @@ class LLMServer:
                 if request.top_p is not None:
                     override_params['top_p'] = request.top_p
                 
-                def stream_generator():
+                async def stream_generator():
+                    full_response = ""
                     for chunk in self.generate_stream(request.prompt, **override_params):
+                        full_response += chunk
                         yield chunk
+                    
+                    # After streaming is complete, execute commands
+                    if command_executor and full_response:
+                        _, cmd_results = command_executor.process_llm_output(full_response)
+                        if cmd_results:
+                            # Send command execution results as a special marker
+                            yield f"\n\n[COMMANDS_EXECUTED:{json.dumps(cmd_results)}]"
                 
                 return StreamingResponse(stream_generator(), media_type="text/plain")
             
@@ -1057,6 +1084,27 @@ class LLMServer:
                 
             except Exception as e:
                 logger.error(f"Error discovering network: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/workspace")
+        async def get_workspace():
+            """Get the workspace directory structure and contents."""
+            if not command_executor:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Command executor not available"
+                )
+            
+            try:
+                workspace_info = command_executor.get_workspace_contents()
+                return {
+                    "status": "success",
+                    "workspace": workspace_info['workspace'],
+                    "tree": workspace_info['tree'],
+                    "tree_display": workspace_info['tree_string']
+                }
+            except Exception as e:
+                logger.error(f"Error getting workspace: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
     
     def start(self, host: str = "0.0.0.0", port: int = 8000):

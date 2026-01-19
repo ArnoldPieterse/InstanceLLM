@@ -240,6 +240,15 @@
                                 </div>
                             </div>
                         </fieldset>
+                        <fieldset style="margin-top: 12px;">
+                            <legend>Workspace</legend>
+                            <div class="field-row-stacked">
+                                <label style="font-size: 10px; color: #666; margin-bottom: 6px;">
+                                    LLM-generated file system commands are executed in a safe sandbox directory
+                                </label>
+                                <button onclick="viewWorkspace()" style="min-width: 150px;">📁 View Workspace Files</button>
+                            </div>
+                        </fieldset>
                         <div class="field-row" style="justify-content: flex-end; margin-top: 10px;">
                             <button onclick="resetSettings()">Reset to Defaults</button>
                             <button onclick="saveSettings()">Save Settings</button>

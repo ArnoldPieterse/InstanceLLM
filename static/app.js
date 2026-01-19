@@ -656,6 +656,11 @@ async function sendNormalPrompt(prompt, output) {
     const data = await response.json();
     addChatMessage('assistant', data.response);
     
+    // Display command execution results if any
+    if (data.commands_executed && data.commands_executed.length > 0) {
+        displayCommandResults(data.commands_executed);
+    }
+    
     // Read response aloud
     speak(data.response);
 }
@@ -697,6 +702,27 @@ async function sendStreamingPrompt(prompt, output) {
         if (done) break;
         
         const chunk = decoder.decode(value);
+        
+        // Check for command execution marker
+        if (chunk.includes('[COMMANDS_EXECUTED:')) {
+            const match = chunk.match(/\[COMMANDS_EXECUTED:(.*?)\]/);
+            if (match) {
+                try {
+                    const cmdResults = JSON.parse(match[1]);
+                    displayCommandResults(cmdResults);
+                } catch (e) {
+                    console.error('Failed to parse command results:', e);
+                }
+                // Don't display the marker in chat
+                const cleanChunk = chunk.replace(/\[COMMANDS_EXECUTED:.*?\]/, '');
+                if (cleanChunk) {
+                    contentDiv.textContent += cleanChunk;
+                    fullResponse += cleanChunk;
+                }
+                continue;
+            }
+        }
+        
         contentDiv.textContent += chunk;
         fullResponse += chunk;
         output.scrollTop = output.scrollHeight;
@@ -704,6 +730,49 @@ async function sendStreamingPrompt(prompt, output) {
     
     // Read full response aloud after streaming completes
     speak(fullResponse);
+}
+
+// Display command execution results
+function displayCommandResults(results) {
+    const output = document.getElementById('chat-output');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message system';
+    messageDiv.style.background = '#e0f7e0';
+    messageDiv.style.borderLeft = '3px solid #008000';
+    
+    let html = '<div class="label">📁 File System Commands:</div><div class="content">';
+    
+    const successCount = results.filter(r => r.success).length;
+    const totalCount = results.length;
+    
+    html += `<strong>Executed ${successCount}/${totalCount} commands successfully</strong><br><br>`;
+    
+    results.forEach((result, index) => {
+        const icon = result.success ? '✅' : '❌';
+        const color = result.success ? '#008000' : '#800000';
+        
+        html += `<div style="margin-bottom: 8px; padding: 6px; background: #f0f0f0; border-radius: 3px;">`;
+        html += `<strong style="color: ${color};">${icon} ${result.original_command}</strong><br>`;
+        
+        if (result.success) {
+            html += `<span style="font-size: 11px;">✓ ${result.message}</span><br>`;
+            html += `<span style="font-size: 10px; color: #666;">Path: ${result.path}</span>`;
+        } else {
+            html += `<span style="font-size: 11px; color: #800000;">✗ ${result.error}</span>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</div>';
+    messageDiv.innerHTML = html;
+    
+    output.appendChild(messageDiv);
+    output.scrollTop = output.scrollHeight;
+    
+    // Announce command execution
+    const announcement = `Executed ${successCount} of ${totalCount} file system commands`;
+    speak(announcement);
 }
 
 // Add chat message
@@ -1795,3 +1864,46 @@ window.removeCustomSubroutine = function(name) {
     
     speak(`Custom subroutine ${name} removed`);
 };
+
+// View workspace files
+window.viewWorkspace = async function() {
+    if (!activeInstance) {
+        alert('No instance selected');
+        return;
+    }
+    
+    try {
+        const apiEndpoint = getApiEndpoint();
+        const response = await fetch(`${apiEndpoint}/workspace`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch workspace');
+        }
+        
+        const data = await response.json();
+        
+        // Display in a dialog-style message
+        const output = document.getElementById('chat-output');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message system';
+        messageDiv.style.background = '#f0f0f0';
+        messageDiv.style.borderLeft = '3px solid #000080';
+        
+        let html = '<div class="label">📁 Workspace Contents:</div><div class="content">';
+        html += `<strong>Location:</strong> ${data.workspace}<br><br>`;
+        html += '<pre style="background: #ffffff; padding: 8px; border: 1px solid #808080; font-family: \'Courier New\', monospace; font-size: 11px; overflow-x: auto;">';
+        html += data.tree_display;
+        html += '</pre>';
+        html += '</div>';
+        
+        messageDiv.innerHTML = html;
+        output.appendChild(messageDiv);
+        output.scrollTop = output.scrollHeight;
+        
+        speak('Workspace contents displayed');
+    } catch (error) {
+        console.error('Error fetching workspace:', error);
+        alert(`Failed to fetch workspace: ${error.message}`);
+    }
+};
+

@@ -604,9 +604,12 @@ function renderInstances() {
         const statusClass = instance.status === 'healthy' ? 'online' : 'offline';
         const statusText = instance.status === 'healthy' ? 'Online' : 'Offline';
         
+        // Display IP:port instead of just port
+        const displayUrl = instance.local_ip ? `${instance.local_ip}:${instance.port}` : `localhost:${instance.port}`;
+        
         tile.innerHTML = `
             <div class="instance-name">${instance.name}</div>
-            <div class="instance-port">Port: ${instance.port || instance.url}</div>
+            <div class="instance-port">${displayUrl}</div>
             <div class="instance-status">
                 <span class="status-dot ${statusClass}"></span>
                 <span>${statusText}</span>
@@ -647,11 +650,37 @@ async function updateInstanceStatuses() {
             const response = await fetch(`${instance.url}/health`, { timeout: 2000 });
             const data = await response.json();
             instance.status = data.status;
+            instance.local_ip = data.local_ip;
+            instance.resources = data.resources;
         } catch (error) {
             instance.status = 'offline';
         }
     }
     renderInstances();
+    updateResourceDisplay();
+}
+
+// Update resource display
+function updateResourceDisplay() {
+    // Find the main server instance and show its resources
+    const mainInstance = instances.find(i => i.id === 'default') || instances[0];
+    if (mainInstance && mainInstance.resources && mainInstance.resources.available) {
+        const r = mainInstance.resources;
+        const resourceInfo = `CPU: ${r.cpu_percent.toFixed(1)}% | Memory: ${r.memory_percent.toFixed(1)}% (${r.memory_available_gb.toFixed(1)}GB available)`;
+        
+        // Update or create resource display in settings tab
+        let resourceDiv = document.getElementById('resource-display');
+        if (!resourceDiv) {
+            resourceDiv = document.createElement('div');
+            resourceDiv.id = 'resource-display';
+            resourceDiv.style.cssText = 'margin-top: 12px; padding: 8px; background: #c0c0c0; border: 2px inset; font-size: 11px;';
+            const settingsPanel = document.querySelector('.settings-panel');
+            if (settingsPanel) {
+                settingsPanel.appendChild(resourceDiv);
+            }
+        }
+        resourceDiv.innerHTML = `<strong>System Resources:</strong> ${resourceInfo}`;
+    }
 }
 
 // Show add instance dialog
@@ -724,8 +753,14 @@ window.addInstance = async function() {
                 port: port,
                 type: 'local',
                 model: model,
-                status: 'offline'
+                status: 'offline',
+                local_ip: result.local_ip
             });
+            
+            // Show resource warning if an instance was paused
+            if (result.paused_instance) {
+                alert(`Instance created!\n\nWarning: ${result.paused_instance} was paused due to high memory usage.`);
+            }
             
         } catch (error) {
             alert(`Failed to create instance: ${error.message}`);

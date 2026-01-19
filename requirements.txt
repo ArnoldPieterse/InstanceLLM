@@ -8,6 +8,9 @@ huggingface_hub>=0.19.0
 requests>=2.31.0
 tqdm>=4.66.0
 
+# System monitoring
+psutil>=5.9.0
+
 # LLM Libraries (install at least one)
 # For GGUF models (recommended for most local LLMs)
 llama-cpp-python>=0.2.0

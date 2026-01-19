@@ -61,6 +61,7 @@ VERSION: 1.0.0
 import os
 import sys
 import logging
+import socket
 from typing import Optional, Dict, Any, List, Generator
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -69,6 +70,12 @@ import json
 import threading
 import subprocess
 from queue import Queue
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -91,6 +98,47 @@ progress_queues = {}
 
 # Instance management
 running_instances = {}  # {instance_id: {"process": subprocess.Popen, "port": int, "model": str, "name": str}}
+
+
+def get_local_ip():
+    """Get the local IP address of this machine."""
+    try:
+        # Create a socket to find the local IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def get_resource_usage():
+    """Get current system resource usage."""
+    if not PSUTIL_AVAILABLE:
+        return {
+            "cpu_percent": 0,
+            "memory_percent": 0,
+            "memory_available_gb": 0,
+            "available": False
+        }
+    
+    try:
+        return {
+            "cpu_percent": psutil.cpu_percent(interval=0.1),
+            "memory_percent": psutil.virtual_memory().percent,
+            "memory_available_gb": psutil.virtual_memory().available / (1024**3),
+            "memory_total_gb": psutil.virtual_memory().total / (1024**3),
+            "available": True
+        }
+    except Exception as e:
+        logger.error(f"Error getting resource usage: {e}")
+        return {
+            "cpu_percent": 0,
+            "memory_percent": 0,
+            "memory_available_gb": 0,
+            "available": False
+        }
 
 
 @dataclass
@@ -475,10 +523,15 @@ class LLMServer:
         
         @self.app.get("/health")
         async def health():
+            local_ip = get_local_ip()
+            resources = get_resource_usage()
+            
             return {
                 "status": "healthy",
                 "model_loaded": self.model is not None,
                 "model_path": str(self.model_path),
+                "local_ip": local_ip,
+                "resources": resources,
                 "config": {
                     "temperature": self.config.temperature,
                     "max_tokens": self.config.max_tokens,
@@ -717,6 +770,14 @@ class LLMServer:
                 logger.error(f"Error listing models: {e}")
                 return {"models": []}
         
+        @self.app.get("/resources")
+        async def get_resources():
+            """Get system resource usage."""
+            resources = get_resource_usage()
+            resources["local_ip"] = get_local_ip()
+            resources["running_instances"] = len(running_instances)
+            return resources
+        
         @self.app.post("/create-instance")
         async def create_instance(request: CreateInstanceRequest):
             """Create a new LLM instance on a different port."""
@@ -727,34 +788,82 @@ class LLMServer:
                 
                 instance_id = f"instance-{port}"
                 
-                # Start new instance in background
-                def start_instance():
-                    import subprocess
-                    model_path = Path("./models") / model
-                    if not model_path.exists():
-                        logger.error(f"Model not found: {model_path}")
-                        return
-                    
-                    cmd = [
-                        sys.executable,
-                        "llm_server.py",
-                        str(model_path),
-                        str(port)
-                    ]
-                    
-                    logger.info(f"Starting instance {instance_id}: {' '.join(cmd)}")
-                    subprocess.Popen(
-                        cmd,
-                        creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
-                    )
+                # Check if already running
+                if instance_id in running_instances:
+                    return {"status": "error", "message": "Instance already running on this port"}
                 
-                thread = threading.Thread(target=start_instance, daemon=True)
-                thread.start()
+                # Check resource availability
+                resources = get_resource_usage()
+                paused_instance = None
+                
+                if resources["available"] and resources["memory_percent"] > 85:
+                    # Memory usage is high, pause the oldest instance
+                    if running_instances:
+                        # Get the first instance (oldest)
+                        oldest_id = list(running_instances.keys())[0]
+                        oldest = running_instances[oldest_id]
+                        logger.warning(f"Memory usage high ({resources['memory_percent']:.1f}%), pausing instance {oldest_id}")
+                        
+                        try:
+                            oldest["process"].terminate()
+                            oldest["process"].wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            oldest["process"].kill()
+                        
+                        # Keep the instance in the dict but mark as paused
+                        oldest["paused"] = True
+                        paused_instance = oldest_id
+                
+                # Validate model exists
+                model_path = Path("./models") / model
+                if not model_path.exists():
+                    raise HTTPException(status_code=404, detail=f"Model not found: {model}")
+                
+                # Start the instance
+                cmd = [
+                    sys.executable,
+                    "llm_server.py",
+                    str(model_path),
+                    str(port)
+                ]
+                
+                logger.info(f"Starting instance {instance_id}: {' '.join(cmd)}")
+                process = subprocess.Popen(
+                    cmd,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
+                )
+                
+                # Track the instance
+                running_instances[instance_id] = {
+                    "process": process,
+                    "port": port,
+                    "model": model,
+                    "pid": process.pid,
+                    "name": name,
+                    "paused": False
+                }
+                
+                response = {
+                    "status": "success",
+                    "instance_id": instance_id,
+                    "message": f"Instance {name} starting on port {port}",
+                    "pid": process.pid,
+                    "local_ip": get_local_ip(),
+                    "resources": resources
+                }
+                
+                if paused_instance:
+                    response["paused_instance"] = paused_instance
+                    response["message"] += f" (paused {paused_instance} due to high memory usage)"
+                
+                return response
+                }
                 
                 return {
                     "status": "success",
                     "instance_id": instance_id,
-                    "message": f"Instance {name} starting on port {port}"
+                    "message": f"Instance {name} starting on port {port}",
+                    "pid": process.pid
                 }
                 
             except Exception as e:

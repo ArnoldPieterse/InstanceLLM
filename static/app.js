@@ -593,7 +593,12 @@ window.sendPrompt = async function() {
 
 // Helper function to get subroutine system prompt
 function getSubroutinePrompt() {
+    console.log('getSubroutinePrompt called');
+    console.log('activeInstance:', activeInstance);
+    console.log('activeInstance.subroutines:', activeInstance?.subroutines);
+    
     if (!activeInstance || !activeInstance.subroutines || activeInstance.subroutines.length === 0) {
+        console.log('No subroutines to apply');
         return '';
     }
     
@@ -611,7 +616,9 @@ function getSubroutinePrompt() {
         .filter(p => p)
         .join(' ');
     
-    return instructions ? `SYSTEM INSTRUCTIONS: ${instructions}\n\n` : '';
+    const result = instructions ? `SYSTEM INSTRUCTIONS: ${instructions}\n\n` : '';
+    console.log('Subroutine prompt:', result);
+    return result;
 }
 
 // Normal prompt
@@ -619,6 +626,8 @@ async function sendNormalPrompt(prompt, output) {
     const apiEndpoint = getApiEndpoint();
     const subroutinePrompt = getSubroutinePrompt();
     const fullPrompt = subroutinePrompt + prompt;
+    
+    console.log('Sending prompt:', fullPrompt);
     
     const response = await fetch(`${apiEndpoint}/prompt`, {
         method: 'POST',
@@ -645,6 +654,8 @@ async function sendStreamingPrompt(prompt, output) {
     const apiEndpoint = getApiEndpoint();
     const subroutinePrompt = getSubroutinePrompt();
     const fullPrompt = subroutinePrompt + prompt;
+    
+    console.log('Sending streaming prompt:', fullPrompt);
     
     const response = await fetch(`${apiEndpoint}/stream`, {
         method: 'POST',

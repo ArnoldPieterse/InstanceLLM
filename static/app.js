@@ -754,6 +754,17 @@ function loadInstances() {
     if (saved) {
         instances = JSON.parse(saved);
         
+        // Remove duplicates based on ID
+        const seen = new Set();
+        instances = instances.filter(instance => {
+            if (seen.has(instance.id)) {
+                console.warn('Removing duplicate instance:', instance.id, instance.name);
+                return false;
+            }
+            seen.add(instance.id);
+            return true;
+        });
+        
         // Update default instance URL and port if needed
         const defaultInstance = instances.find(i => i.id === 'default');
         if (defaultInstance) {
@@ -801,8 +812,13 @@ function renderInstances() {
     
     instances.forEach(instance => {
         const tile = document.createElement('div');
-        tile.className = `instance-tile ${instance.id === (activeInstance?.id) ? 'active' : ''}`;
+        // Only mark as active if this is THE active instance (strict equality check)
+        const isActive = activeInstance && instance.id === activeInstance.id;
+        tile.className = `instance-tile ${isActive ? 'active' : ''}`;
         tile.dataset.instanceId = instance.id;
+        
+        console.log(`Rendering ${instance.name}: id=${instance.id}, active=${isActive}, activeInstance.id=${activeInstance?.id}`);
+        
         
         const statusClass = instance.status === 'healthy' ? 'online' : 
                            instance.status === 'starting' ? 'starting' : 'offline';
@@ -893,10 +909,15 @@ function renderInstances() {
 // Select an instance
 function selectInstance(instanceId) {
     const instance = instances.find(i => i.id === instanceId);
-    if (!instance) return;
+    if (!instance) {
+        console.error('Instance not found:', instanceId);
+        return;
+    }
     
+    // Clear any previous selection
     activeInstance = instance;
-    console.log('Selected instance:', instance.name, instance.id);
+    console.log('Selected instance:', instance.name, 'with id:', instance.id);
+    console.log('All instance IDs:', instances.map(i => ({name: i.name, id: i.id})));
     
     // Update UI to reflect selected instance
     renderInstances();

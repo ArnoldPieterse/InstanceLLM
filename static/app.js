@@ -573,6 +573,7 @@ function loadInstances() {
         if (defaultInstance) {
             defaultInstance.url = API_BASE;
             defaultInstance.port = 8000;
+            defaultInstance.type = 'local'; // Ensure type is set
             // Update local_ip to current hostname if not already set
             if (!defaultInstance.local_ip) {
                 defaultInstance.local_ip = window.location.hostname;
@@ -655,6 +656,8 @@ function renderInstances() {
                 ` : ''}
             </div>
         `;
+        
+        console.log(`Instance ${instance.name}: type=${instance.type}, id=${instance.id}, showing buttons=${instance.type === 'local' && instance.id !== 'default'}`);
         
         // Add event listeners to buttons to prevent tile click
         const startBtn = tile.querySelector('.btn-start');
@@ -980,31 +983,49 @@ window.startInstance = async function(instanceId) {
 
 // Stop instance
 window.stopInstance = async function(instanceId) {
+    console.log('=== stopInstance called ===' );
+    console.log('Instance ID:', instanceId);
+    console.log('All instances:', instances);
+    
     const instance = instances.find(i => i.id === instanceId);
     if (!instance) {
+        console.error('Instance not found:', instanceId);
         alert('Instance not found');
         return;
     }
     
+    console.log('Found instance:', instance);
+    
     // Don't allow stopping the default instance (it's hosting the web interface)
     if (instance.id === 'default') {
+        console.log('Blocking stop for default instance');
         alert('Cannot stop the Main Server.\n\nThis server is hosting the web interface you\'re using.\nTo stop it, close the terminal window or press Ctrl+C.');
         return;
     }
     
-    if (!confirm(`Stop instance "${instance.name}"?`)) return;
+    console.log('Showing confirm dialog');
+    if (!confirm(`Stop instance "${instance.name}"?`)) {
+        console.log('User cancelled stop');
+        return;
+    }
     
     try {
-        console.log(`Stopping instance: ${instance.name}`);
+        console.log(`Stopping instance: ${instance.name} (ID: ${instanceId}, Port: ${instance.port})`);
+        
+        const requestBody = {
+            instance_id: instanceId,
+            port: instance.port
+        };
+        console.log('Request body:', requestBody);
         
         const response = await fetch(`${API_BASE}/stop-instance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                instance_id: instanceId,
-                port: instance.port
-            })
+            body: JSON.stringify(requestBody)
         });
+        
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
         
         if (!response.ok) {
             const error = await response.json();

@@ -608,7 +608,8 @@ function getSubroutinePrompt() {
         'markdown': 'Format all responses using proper Markdown syntax with headers, lists, code blocks, etc.',
         'code': 'Respond with code only. Do not include explanations, comments, or text outside of the code.',
         'concise': 'Be extremely concise. Provide brief, direct answers without elaboration.',
-        'verbose': 'Provide detailed, thorough explanations with examples and comprehensive information.'
+        'verbose': 'Provide detailed, thorough explanations with examples and comprehensive information.',
+        'filesystem': 'When relevant, include complete file system commands (mkdir, New-Item, touch, etc.) for creating folders and files with full permissions. Provide Windows PowerShell, CMD, and/or bash commands as appropriate. Include commands for setting permissions, creating directory structures, and managing files.'
     };
     
     const instructions = activeInstance.subroutines
@@ -911,7 +912,8 @@ function renderInstances() {
                 'markdown': 'MD',
                 'code': 'CODE',
                 'concise': 'BRIEF',
-                'verbose': 'DETAIL'
+                'verbose': 'DETAIL',
+                'filesystem': '📁'
             };
             subroutineBadges = instance.subroutines.map(sub => {
                 // Handle custom subroutines
@@ -1224,7 +1226,8 @@ window.addInstance = async function() {
             'subroutine-markdown',
             'subroutine-code',
             'subroutine-concise',
-            'subroutine-verbose'
+            'subroutine-verbose',
+            'subroutine-filesystem'
         ];
         
         subroutineCheckboxes.forEach(id => {
@@ -1502,7 +1505,7 @@ function loadSubroutinesTab() {
     if (!activeInstance) {
         document.getElementById('subroutine-instance-name').textContent = 'No instance selected';
         // Disable all checkboxes
-        ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+        ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose', 'sub-filesystem'].forEach(id => {
             const checkbox = document.getElementById(id);
             if (checkbox) {
                 checkbox.checked = false;
@@ -1514,7 +1517,7 @@ function loadSubroutinesTab() {
     }
     
     // Enable all checkboxes
-    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose', 'sub-filesystem'].forEach(id => {
         const checkbox = document.getElementById(id);
         if (checkbox) checkbox.disabled = false;
     });
@@ -1537,6 +1540,7 @@ function loadSubroutinesTab() {
     document.getElementById('sub-code').checked = currentSubroutines.includes('code');
     document.getElementById('sub-concise').checked = currentSubroutines.includes('concise');
     document.getElementById('sub-verbose').checked = currentSubroutines.includes('verbose');
+    document.getElementById('sub-filesystem').checked = currentSubroutines.includes('filesystem');
     
     // Render custom subroutines
     renderCustomSubroutines();
@@ -1553,13 +1557,14 @@ function updateActiveInstructions() {
         'markdown': 'MD: Format with Markdown syntax',
         'code': 'CODE: Code only, no explanations',
         'concise': 'BRIEF: Direct, concise answers',
-        'verbose': 'DETAIL: Detailed, thorough explanations'
+        'verbose': 'DETAIL: Detailed, thorough explanations',
+        'filesystem': '📁 FILE SYSTEM: Include folder/file creation commands'
     };
     
     const selected = [];
     
     // Check predefined subroutines
-    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose', 'sub-filesystem'].forEach(id => {
         const checkbox = document.getElementById(id);
         if (checkbox && checkbox.checked) {
             const value = checkbox.value;
@@ -1598,7 +1603,7 @@ window.updateSubroutines = function() {
 
 // Clear all subroutines
 window.clearAllSubroutines = function() {
-    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose', 'sub-filesystem'].forEach(id => {
         const checkbox = document.getElementById(id);
         if (checkbox) checkbox.checked = false;
     });
@@ -1620,7 +1625,8 @@ window.applySubroutines = function() {
         'sub-markdown': 'markdown',
         'sub-code': 'code',
         'sub-concise': 'concise',
-        'sub-verbose': 'verbose'
+        'sub-verbose': 'verbose',
+        'sub-filesystem': 'filesystem'
     };
     
     Object.entries(checkboxMap).forEach(([id, value]) => {

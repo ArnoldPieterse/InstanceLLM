@@ -149,6 +149,16 @@
                         </fieldset>
                         
                         <fieldset style="margin-top: 12px;">
+                            <legend>Commands & Scripts</legend>
+                            <div class="field-row-stacked" style="padding: 8px;">
+                                <label>
+                                    <input type="checkbox" id="sub-filesystem" value="filesystem" onchange="updateSubroutines()">
+                                    <strong>📁 File System Commands</strong> - Include folder/file creation commands in responses
+                                </label>
+                            </div>
+                        </fieldset>
+                        
+                        <fieldset style="margin-top: 12px;">
                             <legend>Custom Subroutines</legend>
                             <div class="field-row-stacked" style="padding: 8px;">
                                 <div id="custom-subroutines-list">
@@ -332,6 +342,10 @@
                             <label>
                                 <input type="checkbox" id="subroutine-verbose" value="verbose">
                                 Verbose Mode - Detailed, thorough explanations
+                            </label>
+                            <label>
+                                <input type="checkbox" id="subroutine-filesystem" value="filesystem">
+                                📁 File System Commands - Include folder/file creation commands
                             </label>
                         </div>
                     </fieldset>

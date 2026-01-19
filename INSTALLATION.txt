@@ -1,0 +1,21 @@
+  4. Download a model (TinyLlama recommended for testing
+  5. Restart the server 
+ 
+CREATING INSTANCES: 
+  1. Click the + button in the Instances panel 
+  2. Enter a name, select a model, and choose a port 
+  3. Click Start to launch the instance 
+ 
+FEATURES: 
+  - Windows 95 retro interface 
+  - Multiple LLM instances on different ports 
+  - Model downloading from Hugging Face 
+  - Microsoft Sam text-to-speech 
+  - Streaming and non-streaming chat modes 
+ 
+TROUBLESHOOTING: 
+  - Port already in use: Change the port number in start script 
+  - Model not loading: Check models\ folder for .gguf files 
+  - Voice not working: Check browser audio permissions 
+ 
+For more info: https://github.com/yourusername/InstanceLLM 

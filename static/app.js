@@ -4,6 +4,23 @@ console.log('InstanceLLM Web Interface loaded');
 // Automatically detect the API base URL from the current page
 const API_BASE = window.location.origin;
 
+// Helper function to get the API endpoint for the active instance
+function getApiEndpoint() {
+    if (activeInstance) {
+        if (activeInstance.url) {
+            return activeInstance.url;
+        } else if (activeInstance.ip) {
+            // For remote instances from network scan
+            return `http://${activeInstance.ip}:${activeInstance.port}`;
+        } else if (activeInstance.local_ip) {
+            return `http://${activeInstance.local_ip}:${activeInstance.port}`;
+        } else {
+            return `http://${window.location.hostname}:${activeInstance.port}`;
+        }
+    }
+    return API_BASE;
+}
+
 // State
 let currentSettings = {
     temperature: 0.8,
@@ -15,6 +32,121 @@ let currentSettings = {
 let selectedModel = null;
 let instances = [];
 let activeInstance = null;
+let voiceEnabled = true;
+let samVoice = null;
+window.voiceRate = 1.1; // Default rate
+
+// Microsoft Sam Text-to-Speech
+function initSamVoice() {
+    const voices = speechSynthesis.getVoices();
+    // Try to find a voice similar to Microsoft Sam (male English voice)
+    samVoice = voices.find(v => v.name.includes('Microsoft David')) ||
+               voices.find(v => v.name.includes('Microsoft Mark')) ||
+               voices.find(v => v.lang === 'en-US' && !v.name.includes('Female')) ||
+               voices[0];
+    console.log('Sam voice initialized:', samVoice?.name);
+}
+
+function speak(text) {
+    if (!voiceEnabled) return;
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (samVoice) {
+        utterance.voice = samVoice;
+    }
+    utterance.rate = window.voiceRate || 1.1;
+    utterance.pitch = 1.0;
+    
+    speechSynthesis.speak(utterance);
+}
+
+window.toggleVoice = function() {
+    voiceEnabled = !voiceEnabled;
+    const btn = document.getElementById('voice-toggle');
+    btn.textContent = voiceEnabled ? '🔊 Voice On' : '🔇 Voice Off';
+    speak(voiceEnabled ? 'Voice enabled' : 'Voice disabled');
+};
+
+window.toggleVoiceMenu = function(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('voice-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+};
+
+window.toggleVoiceOnOff = function() {
+    voiceEnabled = !voiceEnabled;
+    
+    if (voiceEnabled) {
+        speechSynthesis.resume();
+    } else {
+        speechSynthesis.pause();
+    }
+    
+    const check = document.getElementById('voice-check');
+    check.textContent = voiceEnabled ? '✓' : '';
+    updateVoiceButtonStates();
+    closeVoiceMenu();
+};
+
+window.quickToggleVoice = function() {
+    voiceEnabled = !voiceEnabled;
+    
+    if (voiceEnabled) {
+        speechSynthesis.resume();
+    } else {
+        speechSynthesis.pause();
+    }
+    
+    updateVoiceButtonStates();
+};
+
+function updateVoiceButtonStates() {
+    // Update quick toggle button
+    const quickBtn = document.getElementById('quick-voice-toggle');
+    if (quickBtn) {
+        quickBtn.textContent = voiceEnabled ? '🔊 Voice On' : '🔇 Voice Off';
+    }
+    
+    // Update menu checkmark
+    const check = document.getElementById('voice-check');
+    if (check) {
+        check.textContent = voiceEnabled ? '✓' : '';
+    }
+}
+
+window.setVoiceRate = function(rate) {
+    window.voiceRate = rate;
+    closeVoiceMenu();
+    speak(`Voice speed set to ${rate === 0.8 ? 'slower' : rate === 1.0 ? 'normal' : 'faster'}`);
+};
+
+function closeVoiceMenu() {
+    document.getElementById('voice-menu').style.display = 'none';
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', function(event) {
+    const menu = document.getElementById('voice-menu');
+    const btn = document.getElementById('voice-menu-btn');
+    if (menu && btn && !menu.contains(event.target) && event.target !== btn) {
+        closeVoiceMenu();
+    }
+});
+
+window.testVoice = function() {
+    console.log('Testing voice...');
+    console.log('Voice enabled:', voiceEnabled);
+    console.log('Sam voice:', samVoice);
+    console.log('Available voices:', speechSynthesis.getVoices().length);
+    closeVoiceMenu();
+    speak('Soy. Soy. Soy. Soy. Soy. Soy. Soy. Soy. Soy. Soy. Soy. Soy.');
+};
+
+// Initialize voices when available
+if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = initSamVoice;
+}
+setTimeout(initSamVoice, 100);
 
 // Available models (matching model_downloader.py)
 const AVAILABLE_MODELS = {
@@ -124,7 +256,11 @@ window.switchTab = function(tabName) {
 // Check server status
 async function checkServerStatus() {
     try {
-        const response = await fetch(`${API_BASE}/health`);
+        // Use activeInstance if available, otherwise use default API_BASE
+        const apiEndpoint = getApiEndpoint();
+        const healthUrl = `${apiEndpoint}/health`;
+        
+        const response = await fetch(healthUrl);
         const data = await response.json();
         
         document.getElementById('server-status').textContent = data.status === 'healthy' ? '✓ Online' : '✗ Offline';
@@ -134,6 +270,9 @@ async function checkServerStatus() {
             const modelName = data.model_path.split('/').pop().split('\\').pop();
             document.getElementById('model-name').textContent = modelName;
         }
+        
+        // Update API endpoint display
+        document.getElementById('api-endpoint').textContent = apiEndpoint;
     } catch (error) {
         document.getElementById('server-status').textContent = '✗ Offline';
         document.getElementById('server-status').style.color = 'red';
@@ -261,9 +400,45 @@ window.scanOnlineModels = async function() {
 };
 
 // Use model - GLOBAL FUNCTION
-window.useModel = function(id) {
+window.useModel = async function(id) {
     const model = AVAILABLE_MODELS[id];
-    alert(`To use ${model.name}:\n\n1. Stop the current server\n2. Restart with: python llm_server.py models\\${model.file} 8001`);
+    
+    if (!activeInstance) {
+        alert('Please select an instance first');
+        return;
+    }
+    
+    if (!confirm(`Switch ${activeInstance.name} to ${model.name}?`)) {
+        return;
+    }
+    
+    try {
+        // Update the instance's model
+        activeInstance.model = model.file;
+        saveInstances();
+        
+        // If instance is running, restart it with new model
+        if (activeInstance.status === 'healthy') {
+            // Stop the instance first
+            await stopInstance(activeInstance.id);
+            
+            // Wait a moment
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Start with new model
+            await startInstance(activeInstance.id);
+        } else {
+            // Just update the config
+            speak('Model updated');
+            alert(`${activeInstance.name} updated to use ${model.name}\n\nClick Start to launch it.`);
+        }
+        
+        renderInstances();
+        checkServerStatus();
+    } catch (error) {
+        console.error('Error switching model:', error);
+        alert('Error switching model: ' + error.message);
+    }
 };
 
 // Select model (show details) - GLOBAL FUNCTION
@@ -333,6 +508,7 @@ window.downloadModel = async function(id) {
                     progressContainer.style.display = 'none';
                 }, 3000);
                 
+                speak('Download complete');
                 alert(`Download complete!\n\n${data.model_name}\n\nRestart the server to use this model.`);
             } else if (data.status === 'error') {
                 console.error('Download error:', data.message);
@@ -412,7 +588,8 @@ window.sendPrompt = async function() {
 
 // Normal prompt
 async function sendNormalPrompt(prompt, output) {
-    const response = await fetch(`${API_BASE}/prompt`, {
+    const apiEndpoint = getApiEndpoint();
+    const response = await fetch(`${apiEndpoint}/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -427,11 +604,15 @@ async function sendNormalPrompt(prompt, output) {
     
     const data = await response.json();
     addChatMessage('assistant', data.response);
+    
+    // Read response aloud
+    speak(data.response);
 }
 
 // Streaming prompt
 async function sendStreamingPrompt(prompt, output) {
-    const response = await fetch(`${API_BASE}/stream`, {
+    const apiEndpoint = getApiEndpoint();
+    const response = await fetch(`${apiEndpoint}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -453,6 +634,7 @@ async function sendStreamingPrompt(prompt, output) {
     output.appendChild(messageDiv);
     
     const contentDiv = messageDiv.querySelector('.content');
+    let fullResponse = '';
     
     while (true) {
         const { done, value } = await reader.read();
@@ -460,8 +642,12 @@ async function sendStreamingPrompt(prompt, output) {
         
         const chunk = decoder.decode(value);
         contentDiv.textContent += chunk;
+        fullResponse += chunk;
         output.scrollTop = output.scrollHeight;
     }
+    
+    // Read full response aloud after streaming completes
+    speak(fullResponse);
 }
 
 // Add chat message
@@ -625,7 +811,10 @@ function renderInstances() {
         
         // Display URL with IP if available, otherwise use hostname from current page
         let displayUrl;
-        if (instance.local_ip) {
+        if (instance.ip) {
+            // For remote instances from network scan
+            displayUrl = `${instance.ip}:${instance.port}`;
+        } else if (instance.local_ip) {
             displayUrl = `${instance.local_ip}:${instance.port}`;
         } else if (instance.url) {
             // Extract hostname from URL
@@ -639,15 +828,18 @@ function renderInstances() {
             displayUrl = `${window.location.hostname}:${instance.port}`;
         }
         
+        // Add network badge for remote instances
+        const networkBadge = instance.isRemote ? '<span style="background: #008080; color: white; padding: 2px 4px; font-size: 9px; border-radius: 2px; margin-left: 4px;">NET</span>' : '';
+        
         tile.innerHTML = `
-            <div class="instance-name">${instance.name}</div>
+            <div class="instance-name">${instance.name}${networkBadge}</div>
             <div class="instance-port">${displayUrl}</div>
             <div class="instance-status">
                 <span class="status-dot ${statusClass}"></span>
                 <span>${statusText}</span>
             </div>
             <div class="instance-controls">
-                ${instance.type === 'local' && instance.id !== 'default' ? `
+                ${!instance.isRemote && instance.type === 'local' && instance.id !== 'default' ? `
                     <button class="btn-start" data-instance-id="${instance.id}" title="Start Instance" style="color: green; font-weight: bold;">▶ Start</button>
                     <button class="btn-stop" data-instance-id="${instance.id}" title="Stop Instance" style="color: red; font-weight: bold;">■ Stop</button>
                 ` : ''}
@@ -657,12 +849,14 @@ function renderInstances() {
             </div>
         `;
         
-        console.log(`Instance ${instance.name}: type=${instance.type}, id=${instance.id}, showing buttons=${instance.type === 'local' && instance.id !== 'default'}`);
+        console.log(`Instance ${instance.name}: type=${instance.type}, isRemote=${instance.isRemote}, id=${instance.id}, showing buttons=${!instance.isRemote && instance.type === 'local' && instance.id !== 'default'}`);
         
         // Add event listeners to buttons to prevent tile click
         const startBtn = tile.querySelector('.btn-start');
         const stopBtn = tile.querySelector('.btn-stop');
         const removeBtn = tile.querySelector('.btn-remove');
+        
+        console.log(`Buttons found for ${instance.name}: start=${!!startBtn}, stop=${!!stopBtn}, remove=${!!removeBtn}`);
         
         if (startBtn) {
             startBtn.addEventListener('click', (e) => {
@@ -702,13 +896,11 @@ function selectInstance(instanceId) {
     if (!instance) return;
     
     activeInstance = instance;
+    console.log('Selected instance:', instance.name, instance.id);
     
-    // Update API_BASE for the active instance
-    // Note: This would need more work to properly switch contexts
-    
-    // Update UI
+    // Update UI to reflect selected instance
     renderInstances();
-    checkServerStatus();
+    checkServerStatus(); // This will now use the activeInstance
 }
 
 // Update instance statuses
@@ -719,6 +911,9 @@ async function updateInstanceStatuses() {
             let healthUrl;
             if (instance.url) {
                 healthUrl = `${instance.url}/health`;
+            } else if (instance.ip) {
+                // For remote instances from network scan
+                healthUrl = `http://${instance.ip}:${instance.port}/health`;
             } else if (instance.local_ip) {
                 healthUrl = `http://${instance.local_ip}:${instance.port}/health`;
             } else {
@@ -737,9 +932,12 @@ async function updateInstanceStatuses() {
             
             const data = await response.json();
             instance.status = data.status;
-            instance.local_ip = data.local_ip;
+            if (!instance.isRemote) {
+                // Only update local_ip for local instances
+                instance.local_ip = data.local_ip;
+            }
             instance.resources = data.resources;
-            console.log(`Instance ${instance.name} - IP: ${instance.local_ip}, Status: ${instance.status}`);
+            console.log(`Instance ${instance.name} - IP: ${instance.ip || instance.local_ip}, Status: ${instance.status}`);
         } catch (error) {
             instance.status = 'offline';
             console.log(`Instance ${instance.name} - Offline (${error.name})`);
@@ -794,6 +992,87 @@ window.showAddInstanceDialog = function() {
             }
         })
         .catch(err => console.error('Failed to load models:', err));
+};
+
+// Scan network for InstanceLLM servers
+window.scanNetwork = async function() {
+    try {
+        speak('Scanning local network for Instance L L M servers');
+        console.log('Starting network scan...');
+        
+        // Show scanning status
+        const instancesList = document.getElementById('instances-list');
+        const scanningMsg = document.createElement('div');
+        scanningMsg.className = 'scanning-message';
+        scanningMsg.innerHTML = '<div style="padding: 12px; text-align: center; font-style: italic;">🔍 Scanning network...</div>';
+        instancesList.insertBefore(scanningMsg, instancesList.firstChild);
+        
+        const response = await fetch(`${API_BASE}/api/discover`);
+        const data = await response.json();
+        
+        // Remove scanning message
+        scanningMsg.remove();
+        
+        if (data.status === 'success') {
+            const count = data.count;
+            console.log(`Found ${count} servers:`, data.discovered);
+            
+            if (count === 0) {
+                speak('No Instance L L M servers found on network');
+                alert('No InstanceLLM servers found on the network.');
+                return;
+            }
+            
+            speak(`Found ${count} Instance L L M ${count === 1 ? 'server' : 'servers'} on network`);
+            
+            // Add discovered servers to instances list
+            let addedCount = 0;
+            for (const server of data.discovered) {
+                // Check if any instances from this server are already in our list
+                const serverInstances = server.instances || [];
+                
+                for (const instance of serverInstances) {
+                    const instanceId = `${server.hostname}_${instance.instance_id}`;
+                    const existingInstance = instances.find(i => i.id === instanceId);
+                    
+                    if (!existingInstance) {
+                        instances.push({
+                            id: instanceId,
+                            name: `${server.hostname} - ${instance.name}`,
+                            ip: server.ip,
+                            port: instance.port,
+                            model: instance.model,
+                            status: instance.status,
+                            isRemote: true,
+                            hostname: server.hostname
+                        });
+                        addedCount++;
+                    }
+                }
+            }
+            
+            renderInstances();
+            
+            if (addedCount > 0) {
+                speak(`Added ${addedCount} new ${addedCount === 1 ? 'instance' : 'instances'} from network`);
+                alert(`Network scan complete!\nFound ${count} server(s)\nAdded ${addedCount} new instance(s)`);
+            } else {
+                speak('All discovered instances were already in the list');
+                alert(`Network scan complete!\nFound ${count} server(s)\nAll instances already in your list`);
+            }
+        } else {
+            speak('Network scan failed');
+            console.error('Network scan failed:', data);
+        }
+    } catch (error) {
+        speak('Error scanning network');
+        console.error('Error scanning network:', error);
+        alert('Failed to scan network. Make sure the server is running.');
+        
+        // Remove scanning message if there was an error
+        const scanningMsg = document.querySelector('.scanning-message');
+        if (scanningMsg) scanningMsg.remove();
+    }
 };
 
 // Close add instance dialog
@@ -853,7 +1132,10 @@ window.addInstance = async function() {
             
             // Show resource warning if an instance was paused
             if (result.paused_instance) {
+                speak('Instance created. Warning. Another instance was paused.');
                 alert(`Instance created!\n\nWarning: ${result.paused_instance} was paused due to high memory usage.`);
+            } else {
+                speak('Instance created successfully.');
             }
             
         } catch (error) {
@@ -894,10 +1176,22 @@ window.addInstance = async function() {
 
 // Remove instance
 window.removeInstance = async function(instanceId) {
-    const instance = instances.find(i => i.id === instanceId);
-    if (!instance) return;
+    console.log('=== removeInstance called ===');
+    console.log('Instance ID:', instanceId);
     
-    if (!confirm(`Remove instance "${instance.name}"?`)) return;
+    const instance = instances.find(i => i.id === instanceId);
+    if (!instance) {
+        console.error('Instance not found:', instanceId);
+        return;
+    }
+    
+    console.log('Found instance:', instance);
+    console.log('Showing confirm dialog');
+    
+    if (!confirm(`Remove instance "${instance.name}"?`)) {
+        console.log('User cancelled remove');
+        return;
+    }
     
     // If local instance, stop it first
     if (instance.type === 'local') {
@@ -969,10 +1263,14 @@ window.startInstance = async function(instanceId) {
         instance.status = 'starting';
         renderInstances();
         
+        speak(`Starting instance ${instance.name}`);
         alert(`Starting instance: ${instance.name}\n\nPlease wait a few seconds for the server to start...`);
         
         // Update status after delays to check if it's running
-        setTimeout(() => updateInstanceStatuses(), 2000);
+        setTimeout(() => {
+            updateInstanceStatuses();
+            speak('Instance online');
+        }, 2000);
         setTimeout(() => updateInstanceStatuses(), 5000);
         setTimeout(() => updateInstanceStatuses(), 8000);
     } catch (error) {
@@ -1009,6 +1307,8 @@ window.stopInstance = async function(instanceId) {
         return;
     }
     
+    speak(`Stopping instance ${instance.name}`);
+    
     try {
         console.log(`Stopping instance: ${instance.name} (ID: ${instanceId}, Port: ${instance.port})`);
         
@@ -1040,8 +1340,13 @@ window.stopInstance = async function(instanceId) {
         renderInstances();
         saveInstances();
         
+        speak('Instance stopped');
+        
         if (result.status === 'error') {
-            alert(result.message);
+            // Instance not tracked by backend - might not have been started through start button
+            // or backend was restarted. Just update UI.
+            console.warn('Backend error:', result.message);
+            alert(`Note: ${result.message}\n\nInstance status updated to offline in UI.`);
         } else {
             alert(`Stopped instance: ${instance.name}`);
         }

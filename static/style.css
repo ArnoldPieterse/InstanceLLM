@@ -71,6 +71,14 @@ body {
     line-height: 1;
 }
 
+.scan-network-btn {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
+}
+
 .instances-list {
     flex: 1;
     overflow-y: auto;
@@ -176,6 +184,48 @@ body {
 .instance-controls button:active {
     background: #c0c0c0;
     border-style: inset;
+}
+
+/* Windows 95 Dropdown Menu */
+.win95-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 2px;
+    min-width: 180px;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #ffffff #000000 #000000 #ffffff;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+    z-index: 1000;
+    padding: 2px;
+}
+
+.menu-item {
+    padding: 4px 20px 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.menu-item:hover {
+    background: #000080;
+    color: white;
+}
+
+.menu-separator {
+    height: 1px;
+    background: #808080;
+    margin: 2px 4px;
+    border-top: 1px solid #ffffff;
+}
+
+#voice-check {
+    width: 12px;
+    font-weight: bold;
 }
 
 .main-content {

@@ -70,6 +70,8 @@ import json
 import threading
 import subprocess
 from queue import Queue
+import time
+import struct
 
 try:
     import psutil
@@ -967,6 +969,94 @@ class LLMServer:
                 
             except Exception as e:
                 logger.error(f"Error listing instances: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/info")
+        async def server_info():
+            """Return server information for network discovery."""
+            try:
+                local_ip = get_local_ip()
+                hostname = socket.gethostname()
+                resources = get_resource_usage()
+                
+                # Get running instances info
+                instances = []
+                for instance_id, data in running_instances.items():
+                    if data["process"].poll() is None:
+                        instances.append({
+                            "instance_id": instance_id,
+                            "port": data["port"],
+                            "model": data.get("model", "unknown"),
+                            "name": data.get("name", instance_id),
+                            "status": "running"
+                        })
+                
+                return {
+                    "server_type": "InstanceLLM",
+                    "version": "1.0.0",
+                    "hostname": hostname,
+                    "ip": local_ip,
+                    "instances": instances,
+                    "resources": resources,
+                    "timestamp": time.time()
+                }
+            except Exception as e:
+                logger.error(f"Error getting server info: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/discover")
+        async def discover_network():
+            """Scan local network for other InstanceLLM servers."""
+            try:
+                discovered = []
+                local_ip = get_local_ip()
+                
+                # Extract subnet (assuming /24)
+                ip_parts = local_ip.split('.')
+                subnet = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}"
+                
+                logger.info(f"Scanning subnet {subnet}.0/24 for InstanceLLM servers...")
+                
+                async def check_host(ip: str):
+                    """Check if a host is running InstanceLLM."""
+                    try:
+                        # Try to connect to common port
+                        import aiohttp
+                        timeout = aiohttp.ClientTimeout(total=0.5)
+                        async with aiohttp.ClientSession(timeout=timeout) as session:
+                            async with session.get(f"http://{ip}:8000/api/info") as resp:
+                                if resp.status == 200:
+                                    data = await resp.json()
+                                    if data.get("server_type") == "InstanceLLM":
+                                        return data
+                    except:
+                        pass
+                    return None
+                
+                # Scan subnet concurrently (skip .0, .255, and own IP)
+                tasks = []
+                for i in range(1, 255):
+                    ip = f"{subnet}.{i}"
+                    if ip != local_ip:  # Skip own IP
+                        tasks.append(check_host(ip))
+                
+                # Run all checks concurrently
+                results = await asyncio.gather(*tasks)
+                
+                # Filter out None results
+                discovered = [r for r in results if r is not None]
+                
+                logger.info(f"Found {len(discovered)} InstanceLLM servers on network")
+                
+                return {
+                    "status": "success",
+                    "discovered": discovered,
+                    "scanned_subnet": f"{subnet}.0/24",
+                    "count": len(discovered)
+                }
+                
+            except Exception as e:
+                logger.error(f"Error discovering network: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
     
     def start(self, host: str = "0.0.0.0", port: int = 8000):

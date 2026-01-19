@@ -220,6 +220,36 @@
                             <option value="">Select model...</option>
                         </select>
                     </div>
+                    
+                    <fieldset style="margin-top: 12px;">
+                        <legend>Subroutines</legend>
+                        <div class="field-row-stacked" style="padding: 8px;">
+                            <label>
+                                <input type="checkbox" id="subroutine-json" value="json">
+                                JSON Output - Always return valid JSON format
+                            </label>
+                            <label>
+                                <input type="checkbox" id="subroutine-xml" value="xml">
+                                XML Output - Return responses in XML format
+                            </label>
+                            <label>
+                                <input type="checkbox" id="subroutine-markdown" value="markdown">
+                                Markdown Output - Format responses in markdown
+                            </label>
+                            <label>
+                                <input type="checkbox" id="subroutine-code" value="code">
+                                Code-Only - Return only code without explanations
+                            </label>
+                            <label>
+                                <input type="checkbox" id="subroutine-concise" value="concise">
+                                Concise Mode - Brief, direct answers only
+                            </label>
+                            <label>
+                                <input type="checkbox" id="subroutine-verbose" value="verbose">
+                                Verbose Mode - Detailed, thorough explanations
+                            </label>
+                        </div>
+                    </fieldset>
                 </div>
                 
                 <div id="custom-instance-fields" style="display: none;">

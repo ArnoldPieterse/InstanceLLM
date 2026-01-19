@@ -586,14 +586,40 @@ window.sendPrompt = async function() {
     }
 };
 
+// Helper function to get subroutine system prompt
+function getSubroutinePrompt() {
+    if (!activeInstance || !activeInstance.subroutines || activeInstance.subroutines.length === 0) {
+        return '';
+    }
+    
+    const prompts = {
+        'json': 'You must respond ONLY with valid JSON. Do not include any text before or after the JSON object.',
+        'xml': 'You must respond in valid XML format. Structure your response with appropriate XML tags.',
+        'markdown': 'Format all responses using proper Markdown syntax with headers, lists, code blocks, etc.',
+        'code': 'Respond with code only. Do not include explanations, comments, or text outside of the code.',
+        'concise': 'Be extremely concise. Provide brief, direct answers without elaboration.',
+        'verbose': 'Provide detailed, thorough explanations with examples and comprehensive information.'
+    };
+    
+    const instructions = activeInstance.subroutines
+        .map(sub => prompts[sub])
+        .filter(p => p)
+        .join(' ');
+    
+    return instructions ? `SYSTEM INSTRUCTIONS: ${instructions}\n\n` : '';
+}
+
 // Normal prompt
 async function sendNormalPrompt(prompt, output) {
     const apiEndpoint = getApiEndpoint();
+    const subroutinePrompt = getSubroutinePrompt();
+    const fullPrompt = subroutinePrompt + prompt;
+    
     const response = await fetch(`${apiEndpoint}/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            prompt: prompt,
+            prompt: fullPrompt,
             ...currentSettings
         })
     });
@@ -612,11 +638,14 @@ async function sendNormalPrompt(prompt, output) {
 // Streaming prompt
 async function sendStreamingPrompt(prompt, output) {
     const apiEndpoint = getApiEndpoint();
+    const subroutinePrompt = getSubroutinePrompt();
+    const fullPrompt = subroutinePrompt + prompt;
+    
     const response = await fetch(`${apiEndpoint}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            prompt: prompt,
+            prompt: fullPrompt,
             ...currentSettings
         })
     });
@@ -847,8 +876,24 @@ function renderInstances() {
         // Add network badge for remote instances
         const networkBadge = instance.isRemote ? '<span style="background: #008080; color: white; padding: 2px 4px; font-size: 9px; border-radius: 2px; margin-left: 4px;">NET</span>' : '';
         
+        // Add subroutine badges
+        let subroutineBadges = '';
+        if (instance.subroutines && instance.subroutines.length > 0) {
+            const badgeIcons = {
+                'json': '{ }',
+                'xml': '< >',
+                'markdown': 'MD',
+                'code': 'CODE',
+                'concise': 'BRIEF',
+                'verbose': 'DETAIL'
+            };
+            subroutineBadges = instance.subroutines.map(sub => 
+                `<span style="background: #000080; color: white; padding: 1px 3px; font-size: 8px; border-radius: 2px; margin-left: 2px;" title="${sub}">${badgeIcons[sub] || sub.toUpperCase()}</span>`
+            ).join('');
+        }
+        
         tile.innerHTML = `
-            <div class="instance-name">${instance.name}${networkBadge}</div>
+            <div class="instance-name">${instance.name}${networkBadge}${subroutineBadges}</div>
             <div class="instance-port">${displayUrl}</div>
             <div class="instance-status">
                 <span class="status-dot ${statusClass}"></span>
@@ -1139,6 +1184,26 @@ window.addInstance = async function() {
             return;
         }
         
+        // Collect selected subroutines
+        const subroutines = [];
+        const subroutineCheckboxes = [
+            'subroutine-json',
+            'subroutine-xml',
+            'subroutine-markdown',
+            'subroutine-code',
+            'subroutine-concise',
+            'subroutine-verbose'
+        ];
+        
+        subroutineCheckboxes.forEach(id => {
+            const checkbox = document.getElementById(id);
+            if (checkbox && checkbox.checked) {
+                subroutines.push(checkbox.value);
+            }
+        });
+        
+        console.log('Creating instance with subroutines:', subroutines);
+        
         // Create new instance via API
         try {
             const response = await fetch(`${API_BASE}/create-instance`, {
@@ -1165,7 +1230,8 @@ window.addInstance = async function() {
                 type: 'local',
                 model: model,
                 status: 'offline',
-                local_ip: baseIp
+                local_ip: baseIp,
+                subroutines: subroutines
             });
             
             // Show resource warning if an instance was paused

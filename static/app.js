@@ -645,11 +645,11 @@ function renderInstances() {
             </div>
             <div class="instance-controls">
                 ${instance.type === 'local' && instance.id !== 'default' ? `
-                    <button onclick="event.stopPropagation(); startInstance('${instance.id}')" title="Start">▶</button>
-                    <button onclick="event.stopPropagation(); stopInstance('${instance.id}')" title="Stop">■</button>
+                    <button onclick="event.stopPropagation(); startInstance('${instance.id}')" title="Start Instance" style="color: green; font-weight: bold;">▶ Start</button>
+                    <button onclick="event.stopPropagation(); stopInstance('${instance.id}')" title="Stop Instance" style="color: red; font-weight: bold;">■ Stop</button>
                 ` : ''}
                 ${instance.id !== 'default' ? `
-                    <button onclick="event.stopPropagation(); removeInstance('${instance.id}')" title="Remove">×</button>
+                    <button onclick="event.stopPropagation(); removeInstance('${instance.id}')" title="Remove Instance" style="color: #800000;">× Remove</button>
                 ` : ''}
             </div>
         `;

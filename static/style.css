@@ -153,6 +153,19 @@ body {
     padding: 2px 6px;
     min-height: 18px;
     flex: 1;
+    cursor: pointer;
+    position: relative;
+    z-index: 10;
+}
+
+.instance-controls button:hover {
+    background: #e0e0e0;
+    border-color: #003c74;
+}
+
+.instance-controls button:active {
+    background: #c0c0c0;
+    border-style: inset;
 }
 
 .main-content {

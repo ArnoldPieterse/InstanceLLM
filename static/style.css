@@ -1,0 +1,371 @@
+/* Windows 95 Style CSS */
+
+:root {
+    --surface: #c0c0c0;
+    --button-highlight: #ffffff;
+    --button-face: #dfdfdf;
+    --button-shadow: #808080;
+    --window-frame: #0a0a0a;
+    --dialog-blue: #000080;
+    --dialog-blue-light: #1084d0;
+    --link-blue: #0000ff;
+    --text: #222222;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "MS Sans Serif", "Microsoft Sans Serif", sans-serif;
+    font-size: 11px;
+    color: var(--text);
+    background: #008080;
+    padding: 20px;
+    margin: 0;
+}
+
+.window {
+    background: var(--surface);
+    border-top: 2px solid var(--button-highlight);
+    border-left: 2px solid var(--button-highlight);
+    border-right: 2px solid var(--window-frame);
+    border-bottom: 2px solid var(--window-frame);
+    box-shadow: 1.5px 1.5px 0 0.5px var(--window-frame);
+    padding: 2px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.title-bar {
+    background: linear-gradient(to right, var(--dialog-blue), var(--dialog-blue-light));
+    padding: 2px 3px 2px 3px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.title-bar-text {
+    color: white;
+    font-weight: bold;
+    letter-spacing: 0;
+    margin-left: 3px;
+}
+
+.title-bar-controls {
+    display: flex;
+    gap: 2px;
+}
+
+.title-bar-controls button {
+    min-width: 16px;
+    min-height: 14px;
+    padding: 0;
+    border: 1px solid var(--surface);
+    background: var(--surface);
+}
+
+.window-body {
+    margin: 8px;
+}
+
+.sunken-panel {
+    border-top: 1px solid var(--window-frame);
+    border-left: 1px solid var(--window-frame);
+    border-bottom: 1px solid var(--button-highlight);
+    border-right: 1px solid var(--button-highlight);
+    box-shadow: inset -1px -1px 0 var(--button-shadow), inset 1px 1px 0 #000;
+    background: white;
+    padding: 8px;
+}
+
+button {
+    background: var(--surface);
+    border-top: 2px solid var(--button-highlight);
+    border-left: 2px solid var(--button-highlight);
+    border-right: 2px solid var(--window-frame);
+    border-bottom: 2px solid var(--window-frame);
+    box-shadow: 1px 1px 0 0 var(--button-shadow);
+    padding: 4px 12px;
+    font-family: inherit;
+    font-size: 11px;
+    min-height: 23px;
+    cursor: pointer;
+}
+
+button:active {
+    border-top: 2px solid var(--window-frame);
+    border-left: 2px solid var(--window-frame);
+    border-right: 2px solid var(--button-highlight);
+    border-bottom: 2px solid var(--button-highlight);
+    box-shadow: inset 1px 1px 0 0 var(--button-shadow);
+    padding: 5px 11px 3px 13px;
+}
+
+input[type="text"],
+input[type="number"] {
+    border-top: 1px solid var(--window-frame);
+    border-left: 1px solid var(--window-frame);
+    border-bottom: 1px solid var(--button-highlight);
+    border-right: 1px solid var(--button-highlight);
+    box-shadow: inset -1px -1px 0 var(--button-shadow), inset 1px 1px 0 #000;
+    padding: 3px 4px;
+    font-family: inherit;
+    font-size: 11px;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    width: 150px;
+    height: 2px;
+    background: var(--button-shadow);
+    margin: 0 8px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 11px;
+    height: 21px;
+    background: var(--surface);
+    border-top: 2px solid var(--button-highlight);
+    border-left: 2px solid var(--button-highlight);
+    border-right: 2px solid var(--window-frame);
+    border-bottom: 2px solid var(--window-frame);
+    cursor: pointer;
+}
+
+.tabs menu {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    display: flex;
+    gap: 2px;
+    margin-bottom: -2px;
+}
+
+.tabs menu button {
+    background: var(--surface);
+    border: 2px solid;
+    border-color: var(--button-highlight) var(--window-frame) var(--window-frame) var(--button-highlight);
+    border-radius: 0;
+    border-bottom: none;
+    padding: 4px 8px;
+    font-weight: normal;
+}
+
+.tabs menu button[aria-selected="true"] {
+    background: var(--surface);
+    border-bottom: 2px solid var(--surface);
+    z-index: 1;
+    position: relative;
+}
+
+.tabs article {
+    border: 2px solid;
+    border-color: var(--button-highlight) var(--window-frame) var(--window-frame) var(--button-highlight);
+    padding: 16px;
+    background: var(--surface);
+}
+
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.field-row-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.field-row-stacked label {
+    font-weight: bold;
+}
+
+fieldset {
+    border: 2px groove var(--button-shadow);
+    padding: 12px;
+    margin: 12px 0;
+}
+
+legend {
+    background: var(--surface);
+    padding: 0 4px;
+}
+
+.status-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--button-shadow);
+    padding: 2px 4px;
+    display: flex;
+    gap: 8px;
+}
+
+.status-bar-field {
+    border-top: 1px solid var(--window-frame);
+    border-left: 1px solid var(--window-frame);
+    border-bottom: 1px solid var(--button-highlight);
+    border-right: 1px solid var(--button-highlight);
+    padding: 2px 4px;
+    margin: 0;
+    flex: 1;
+}
+
+.status-section {
+    margin-bottom: 12px;
+}
+
+/* Chat Styles */
+.chat-output {
+    min-height: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.chat-message {
+    margin-bottom: 12px;
+    padding: 4px;
+}
+
+.chat-message.user {
+    color: #000080;
+}
+
+.chat-message.assistant {
+    color: #008000;
+}
+
+.chat-message .label {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+#prompt-input {
+    flex: 1;
+}
+
+/* Models List - Scrollable Tiles */
+.scrollable-tiles {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 8px;
+    background: var(--surface);
+}
+
+.model-tile {
+    background: var(--button-face);
+    border-top: 2px solid var(--button-highlight);
+    border-left: 2px solid var(--button-highlight);
+    border-right: 2px solid var(--button-shadow);
+    border-bottom: 2px solid var(--button-shadow);
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: none;
+}
+
+.model-tile:hover {
+    background: #e0e0e0;
+}
+
+.model-tile:active {
+    border-top: 2px solid var(--button-shadow);
+    border-left: 2px solid var(--button-shadow);
+    border-right: 2px solid var(--button-highlight);
+    border-bottom: 2px solid var(--button-highlight);
+    padding: 13px 11px 11px 13px;
+}
+
+.model-tile.selected {
+    background: var(--dialog-blue);
+    color: white;
+}
+
+.model-tile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.model-name {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.model-size {
+    font-size: 10px;
+    color: var(--button-shadow);
+}
+
+.model-tile.selected .model-size {
+    color: #c0c0c0;
+}
+
+.model-description {
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.model-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.model-actions button {
+    font-size: 10px;
+    padding: 2px 8px;
+    min-height: 20px;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: var(--button-shadow);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+}
+
+::-webkit-scrollbar-track {
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMiIgaGVpZ2h0PSIyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNjMGMwYzAiLz48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSIjYzBjMGMwIi8+PC9zdmc+");
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--surface);
+    border-top: 2px solid var(--button-highlight);
+    border-left: 2px solid var(--button-highlight);
+    border-right: 2px solid var(--window-frame);
+    border-bottom: 2px solid var(--window-frame);
+}
+
+::-webkit-scrollbar-button {
+    background: var(--surface);
+    border-top: 2px solid var(--button-highlight);
+    border-left: 2px solid var(--button-highlight);
+    border-right: 2px solid var(--window-frame);
+    border-bottom: 2px solid var(--window-frame);
+    height: 16px;
+    width: 16px;
+}
+
+::-webkit-scrollbar-button:vertical:decrement {
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTggNGw0IDQtOCAwIDQtNHoiIGZpbGw9IiMwMDAiLz48L3N2Zz4=");
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+::-webkit-scrollbar-button:vertical:increment {
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTggMTJsLTQtNCA4IDAtNC00eiIgZmlsbD0iIzAwMCIvPjwvc3ZnPg==");
+    background-position: center;
+    background-repeat: no-repeat;
+}

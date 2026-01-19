@@ -64,7 +64,9 @@ from typing import Optional, Dict, Any, List, Generator
 from pathlib import Path
 from dataclasses import dataclass, field
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -149,6 +151,20 @@ class LLMServer:
         self.model_path = Path(model_path)
         self.model = None
         self.app = FastAPI(title="Local LLM Server", version="1.0.0")
+        
+        # Add CORS middleware
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        
+        # Mount static files
+        static_path = Path(__file__).parent / "static"
+        if static_path.exists():
+            self.app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
         
         # Initialize configuration with custom parameters
         self.config = self._initialize_config(**kwargs)
@@ -399,8 +415,10 @@ class LLMServer:
                     chunk = output['choices'][0]['text']
                     yield chunk
             else:
-                # Transformers streaming (basic implementation)
-                response = self.generate(prompt, **override_params)
+                # Transfo            # Serve the web interface
+            static_path = Path(__file__).parent / "static" / "index.html"
+            if static_path.exists():
+                return FileResponse(str(static_path))                response = self.generate(prompt, **override_params)
                 # Simulate streaming by chunking the response
                 for i in range(0, len(response), 10):
                     yield response[i:i+10]

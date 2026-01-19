@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstanceLLM Control Panel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="window">
+        <div class="title-bar">
+            <div class="title-bar-text">InstanceLLM Control Panel</div>
+            <div class="title-bar-controls">
+                <button aria-label="Minimize"></button>
+                <button aria-label="Maximize"></button>
+                <button aria-label="Close"></button>
+            </div>
+        </div>
+        <div class="window-body">
+            <!-- Status Section -->
+            <div class="field-row-stacked status-section">
+                <div class="status-bar">
+                    <p class="status-bar-field">Status: <span id="server-status">Checking...</span></p>
+                    <p class="status-bar-field">Model: <span id="model-name">None</span></p>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <section class="tabs">
+                <menu role="tablist">
+                    <button role="tab" aria-selected="true" aria-controls="tab-chat" onclick="switchTab('chat')">Chat</button>
+                    <button role="tab" aria-controls="tab-models" onclick="switchTab('models')">Models</button>
+                    <button role="tab" aria-controls="tab-settings" onclick="switchTab('settings')">Settings</button>
+                </menu>
+
+                <!-- Chat Tab -->
+                <article role="tabpanel" id="tab-chat" class="active">
+                    <div class="chat-container">
+                        <div class="field-row-stacked">
+                            <label for="chat-output">Conversation</label>
+                            <div id="chat-output" class="sunken-panel chat-output"></div>
+                        </div>
+                        <div class="field-row">
+                            <label for="prompt-input">Prompt:</label>
+                            <input id="prompt-input" type="text" placeholder="Type your message here..." />
+                            <button onclick="sendPrompt()">Send</button>
+                        </div>
+                        <div class="field-row">
+                            <input type="checkbox" id="streaming-mode" checked />
+                            <label for="streaming-mode">Streaming mode</label>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Models Tab -->
+                <article role="tabpanel" id="tab-models" style="display: none;">
+                    <div class="models-container">
+                        <div class="field-row-stacked">
+                            <label>Available Models to Download</label>
+                            <div class="window scrollable-tiles" id="models-list">
+                                <div class="loading">Loading models...</div>
+                            </div>
+                        </div>
+                        <div class="field-row-stacked">
+                            <label>Download Progress</label>
+                            <div class="sunken-panel">
+                                <div id="download-status">No downloads in progress</div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Settings Tab -->
+                <article role="tabpanel" id="tab-settings" style="display: none;">
+                    <div class="settings-container">
+                        <fieldset>
+                            <legend>Generation Parameters</legend>
+                            <div class="field-row">
+                                <label for="temperature">Temperature:</label>
+                                <input id="temperature" type="range" min="0" max="2" step="0.1" value="0.8" />
+                                <span id="temp-value">0.8</span>
+                            </div>
+                            <div class="field-row">
+                                <label for="max-tokens">Max Tokens:</label>
+                                <input id="max-tokens" type="number" min="1" max="4096" value="512" />
+                            </div>
+                            <div class="field-row">
+                                <label for="top-p">Top P:</label>
+                                <input id="top-p" type="range" min="0" max="1" step="0.05" value="0.9" />
+                                <span id="top-p-value">0.9</span>
+                            </div>
+                            <div class="field-row">
+                                <label for="top-k">Top K:</label>
+                                <input id="top-k" type="number" min="1" max="100" value="40" />
+                            </div>
+                        </fieldset>
+                        <div class="field-row" style="justify-content: flex-end; margin-top: 10px;">
+                            <button onclick="resetSettings()">Reset to Defaults</button>
+                            <button onclick="saveSettings()">Save Settings</button>
+                        </div>
+                    </div>
+                </article>
+            </section>
+        </div>
+        <div class="status-bar">
+            <p class="status-bar-field">Ready</p>
+            <p class="status-bar-field">API: http://localhost:8001</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

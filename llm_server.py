@@ -857,12 +857,8 @@ class LLMServer:
                     response["message"] += f" (paused {paused_instance} due to high memory usage)"
                 
                 return response
-                }
                 
-                return {
-                    "status": "success",
-                    "instance_id": instance_id,
-                    "message": f"Instance {name} starting on port {port}",
+            except Exception as e:
                     "pid": process.pid
                 }
                 

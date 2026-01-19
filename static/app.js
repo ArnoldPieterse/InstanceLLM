@@ -647,14 +647,46 @@ function renderInstances() {
             </div>
             <div class="instance-controls">
                 ${instance.type === 'local' && instance.id !== 'default' ? `
-                    <button onclick="event.stopPropagation(); startInstance('${instance.id}')" title="Start Instance" style="color: green; font-weight: bold;">▶ Start</button>
-                    <button onclick="event.stopPropagation(); stopInstance('${instance.id}')" title="Stop Instance" style="color: red; font-weight: bold;">■ Stop</button>
+                    <button class="btn-start" data-instance-id="${instance.id}" title="Start Instance" style="color: green; font-weight: bold;">▶ Start</button>
+                    <button class="btn-stop" data-instance-id="${instance.id}" title="Stop Instance" style="color: red; font-weight: bold;">■ Stop</button>
                 ` : ''}
                 ${instance.id !== 'default' ? `
-                    <button onclick="event.stopPropagation(); removeInstance('${instance.id}')" title="Remove Instance" style="color: #800000;">× Remove</button>
+                    <button class="btn-remove" data-instance-id="${instance.id}" title="Remove Instance" style="color: #800000;">× Remove</button>
                 ` : ''}
             </div>
         `;
+        
+        // Add event listeners to buttons to prevent tile click
+        const startBtn = tile.querySelector('.btn-start');
+        const stopBtn = tile.querySelector('.btn-stop');
+        const removeBtn = tile.querySelector('.btn-remove');
+        
+        if (startBtn) {
+            startBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = e.currentTarget.dataset.instanceId;
+                console.log('Start button clicked for:', id);
+                startInstance(id);
+            });
+        }
+        
+        if (stopBtn) {
+            stopBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = e.currentTarget.dataset.instanceId;
+                console.log('Stop button clicked for:', id);
+                stopInstance(id);
+            });
+        }
+        
+        if (removeBtn) {
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = e.currentTarget.dataset.instanceId;
+                console.log('Remove button clicked for:', id);
+                removeInstance(id);
+            });
+        }
         
         tile.addEventListener('click', () => selectInstance(instance.id));
         container.appendChild(tile);

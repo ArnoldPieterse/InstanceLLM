@@ -473,6 +473,128 @@ GET http://localhost:8000/docs
 ```
 Opens Swagger UI with interactive API testing interface.
 
+### Multi-Instance Management API
+
+The server includes endpoints for managing multiple LLM instances on different ports:
+
+#### List Available Models
+```bash
+GET http://localhost:8000/list-models
+```
+
+**Response:**
+```json
+{
+  "models": [
+    "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    "TinyLlama-1.1B-Chat-v1.0.Q4_K_M.gguf"
+  ]
+}
+```
+
+#### Create New Instance
+```bash
+POST http://localhost:8000/create-instance
+Content-Type: application/json
+
+{
+  "name": "Second LLM Server",
+  "port": 8002,
+  "model": "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "instance_id": "instance-8002",
+  "message": "Instance Second LLM Server starting on port 8002"
+}
+```
+
+#### Start Instance
+```bash
+POST http://localhost:8000/start-instance
+Content-Type: application/json
+
+{
+  "instance_id": "instance-8003",
+  "port": 8003,
+  "model": "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Instance instance-8003 started on port 8003",
+  "pid": 12345
+}
+```
+
+#### Stop Instance
+```bash
+POST http://localhost:8000/stop-instance
+Content-Type: application/json
+
+{
+  "instance_id": "instance-8002",
+  "port": 8002
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Instance instance-8002 stopped"
+}
+```
+
+#### List Running Instances
+```bash
+GET http://localhost:8000/list-instances
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "instances": [
+    {
+      "instance_id": "instance-8002",
+      "port": 8002,
+      "model": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+      "pid": 12345,
+      "status": "running"
+    }
+  ]
+}
+```
+
+#### PowerShell Examples
+```powershell
+# List models
+Invoke-RestMethod -Uri "http://localhost:8000/list-models" -Method Get
+
+# Create instance
+$body = @{
+    name = "Instance 2"
+    port = 8002
+    model = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+} | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8000/create-instance" -Method Post -ContentType "application/json" -Body $body
+
+# Stop instance
+$body = @{ instance_id = "instance-8002" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8000/stop-instance" -Method Post -ContentType "application/json" -Body $body
+
+# List running instances
+Invoke-RestMethod -Uri "http://localhost:8000/list-instances" -Method Get
+```
+
 ## ⚙️ Configuration Parameters
 
 Complete list of parameters for customizing LLM behavior:

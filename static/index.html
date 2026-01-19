@@ -71,8 +71,14 @@
                 <!-- Models Tab -->
                 <article role="tabpanel" id="tab-models" style="display: none;">
                     <div class="models-container">
+                        <div class="field-row" style="justify-content: space-between; margin-bottom: 12px;">
+                            <label style="font-weight: bold;">Available Models</label>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="scanForModels()" style="min-width: 120px;">🔍 Scan Local Models</button>
+                                <button onclick="scanOnlineModels()" style="min-width: 140px;">🌐 Scan Online Models</button>
+                            </div>
+                        </div>
                         <div class="field-row-stacked">
-                            <label>Available Models to Download</label>
                             <div class="window scrollable-tiles" id="models-list">
                                 <div class="loading">Loading models...</div>
                             </div>

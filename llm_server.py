@@ -59,6 +59,7 @@ VERSION: 1.0.0
 """
 
 import os
+import sys
 import logging
 from typing import Optional, Dict, Any, List, Generator
 from pathlib import Path
@@ -87,6 +88,9 @@ logger = logging.getLogger(__name__)
 # Global progress tracking
 download_progress = {}
 progress_queues = {}
+
+# Instance management
+running_instances = {}  # {instance_id: {"process": subprocess.Popen, "port": int, "model": str, "name": str}}
 
 
 @dataclass
@@ -118,6 +122,26 @@ class PromptResponse(BaseModel):
     response: str
     model_path: str
     config_used: Dict[str, Any]
+
+
+class StartInstanceRequest(BaseModel):
+    """Request model for starting an instance."""
+    instance_id: str
+    port: int
+    model: str
+
+
+class StopInstanceRequest(BaseModel):
+    """Request model for stopping an instance."""
+    instance_id: str
+    port: Optional[int] = None
+
+
+class CreateInstanceRequest(BaseModel):
+    """Request model for creating a new instance."""
+    name: str
+    port: int
+    model: str
 
 
 class LLMServer:
@@ -694,15 +718,12 @@ class LLMServer:
                 return {"models": []}
         
         @self.app.post("/create-instance")
-        async def create_instance(request: dict):
+        async def create_instance(request: CreateInstanceRequest):
             """Create a new LLM instance on a different port."""
             try:
-                name = request.get('name')
-                port = request.get('port')
-                model = request.get('model')
-                
-                if not all([name, port, model]):
-                    raise HTTPException(status_code=400, detail="Missing required fields")
+                name = request.name
+                port = request.port
+                model = request.model
                 
                 instance_id = f"instance-{port}"
                 
@@ -740,15 +761,112 @@ class LLMServer:
                 logger.error(f"Error creating instance: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
-        @self.app.post("/start-instance/{instance_id}")
-        async def start_instance(instance_id: str):
+        @self.app.post("/start-instance")
+        async def start_instance_endpoint(request: StartInstanceRequest):
             """Start an existing instance."""
-            return {"status": "success", "message": "Start functionality requires instance management system"}
+            try:
+                instance_id = request.instance_id
+                port = request.port
+                model = request.model
+                
+                if instance_id in running_instances:
+                    return {"status": "error", "message": "Instance already running"}
+                
+                model_path = Path("./models") / model
+                if not model_path.exists():
+                    raise HTTPException(status_code=404, detail=f"Model not found: {model}")
+                
+                # Start the instance
+                cmd = [
+                    sys.executable,
+                    "llm_server.py",
+                    str(model_path),
+                    str(port)
+                ]
+                
+                logger.info(f"Starting instance {instance_id} on port {port}: {' '.join(cmd)}")
+                process = subprocess.Popen(
+                    cmd,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
+                )
+                
+                running_instances[instance_id] = {
+                    "process": process,
+                    "port": port,
+                    "model": model,
+                    "pid": process.pid
+                }
+                
+                return {
+                    "status": "success",
+                    "message": f"Instance {instance_id} started on port {port}",
+                    "pid": process.pid
+                }
+                
+            except Exception as e:
+                logger.error(f"Error starting instance: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
         
-        @self.app.post("/stop-instance/{instance_id}")
-        async def stop_instance(instance_id: str):
+        @self.app.post("/stop-instance")
+        async def stop_instance_endpoint(request: StopInstanceRequest):
             """Stop a running instance."""
-            return {"status": "success", "message": "Stop functionality requires instance management system"}
+            try:
+                instance_id = request.instance_id
+                
+                if instance_id not in running_instances:
+                    return {"status": "error", "message": "Instance not running or not found"}
+                
+                instance = running_instances[instance_id]
+                process = instance["process"]
+                
+                # Terminate the process
+                process.terminate()
+                try:
+                    process.wait(timeout=5)  # Wait up to 5 seconds
+                except subprocess.TimeoutExpired:
+                    process.kill()  # Force kill if it doesn't terminate
+                
+                del running_instances[instance_id]
+                
+                return {
+                    "status": "success",
+                    "message": f"Instance {instance_id} stopped"
+                }
+                
+            except Exception as e:
+                logger.error(f"Error stopping instance: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/list-instances")
+        async def list_instances():
+            """List all running instances."""
+            try:
+                instances = []
+                for instance_id, data in running_instances.items():
+                    # Check if process is still running
+                    if data["process"].poll() is None:
+                        instances.append({
+                            "instance_id": instance_id,
+                            "port": data["port"],
+                            "model": data["model"],
+                            "pid": data["pid"],
+                            "status": "running"
+                        })
+                    else:
+                        # Process died, remove from tracking
+                        instances.append({
+                            "instance_id": instance_id,
+                            "port": data["port"],
+                            "model": data["model"],
+                            "pid": data["pid"],
+                            "status": "stopped"
+                        })
+                
+                return {"status": "success", "instances": instances}
+                
+            except Exception as e:
+                logger.error(f"Error listing instances: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
     
     def start(self, host: str = "0.0.0.0", port: int = 8000):
         """

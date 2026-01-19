@@ -1,7 +1,8 @@
 // InstanceLLM Web Interface
 console.log('InstanceLLM Web Interface loaded');
 
-const API_BASE = 'http://localhost:8001';
+// Automatically detect the API base URL from the current page
+const API_BASE = window.location.origin;
 
 // State
 let currentSettings = {
@@ -144,31 +145,71 @@ function loadModelsList() {
     const container = document.getElementById('models-list');
     container.innerHTML = '';
     
-    Object.entries(AVAILABLE_MODELS).forEach(([id, model]) => {
-        const tile = document.createElement('div');
-        tile.className = 'model-tile';
-        tile.dataset.modelId = id;
-        
-        tile.innerHTML = `
-            <div class="model-tile-header">
-                <div class="model-name">${model.name}</div>
-                <div class="model-size">${model.size}</div>
-            </div>
-            <div class="model-description">${model.description}</div>
-            <div class="model-actions">
-                <button onclick="downloadModel('${id}')">Download</button>
-                <button onclick="selectModel('${id}')">Details</button>
-            </div>
-        `;
-        
-        tile.addEventListener('click', (e) => {
-            if (!e.target.matches('button')) {
-                selectModelTile(tile);
-            }
+    // Fetch list of downloaded models first
+    fetch(`${API_BASE}/list-models`)
+        .then(r => r.json())
+        .then(data => {
+            const downloadedModels = data.models || [];
+            
+            Object.entries(AVAILABLE_MODELS).forEach(([id, model]) => {
+                const tile = document.createElement('div');
+                const isDownloaded = downloadedModels.some(m => m.includes(model.file));
+                tile.className = `model-tile ${isDownloaded ? 'downloaded' : ''}`;
+                tile.dataset.modelId = id;
+                
+                tile.innerHTML = `
+                    ${isDownloaded ? '<div class="downloaded-badge">✓ DOWNLOADED</div>' : ''}
+                    <div class="model-tile-header">
+                        <div class="model-name">${model.name}</div>
+                        <div class="model-size">${model.size}</div>
+                    </div>
+                    <div class="model-description">${model.description}</div>
+                    <div class="model-actions">
+                        ${isDownloaded ? 
+                            '<button onclick="useModel(\''+id+'\')">Use This Model</button>' :
+                            '<button onclick="downloadModel(\''+id+'\')">Download</button>'}
+                        <button onclick="selectModel('${id}')">Details</button>
+                    </div>
+                `;
+                
+                tile.addEventListener('click', (e) => {
+                    if (!e.target.matches('button')) {
+                        selectModelTile(tile);
+                    }
+                });
+                
+                container.appendChild(tile);
+            });
+        })
+        .catch(err => {
+            console.error('Failed to load models:', err);
+            // Fallback to showing all models without download status
+            Object.entries(AVAILABLE_MODELS).forEach(([id, model]) => {
+                const tile = document.createElement('div');
+                tile.className = 'model-tile';
+                tile.dataset.modelId = id;
+                
+                tile.innerHTML = `
+                    <div class="model-tile-header">
+                        <div class="model-name">${model.name}</div>
+                        <div class="model-size">${model.size}</div>
+                    </div>
+                    <div class="model-description">${model.description}</div>
+                    <div class="model-actions">
+                        <button onclick="downloadModel('${id}')">Download</button>
+                        <button onclick="selectModel('${id}')">Details</button>
+                    </div>
+                `;
+                
+                tile.addEventListener('click', (e) => {
+                    if (!e.target.matches('button')) {
+                        selectModelTile(tile);
+                    }
+                });
+                
+                container.appendChild(tile);
+            });
         });
-        
-        container.appendChild(tile);
-    });
 }
 
 // Select model tile
@@ -176,6 +217,53 @@ function selectModelTile(tile) {
     document.querySelectorAll('.model-tile').forEach(t => t.classList.remove('selected'));
     tile.classList.add('selected');
 }
+
+// Scan for downloaded models - GLOBAL FUNCTION
+window.scanForModels = async function() {
+    console.log('Scanning for downloaded models...');
+    try {
+        const response = await fetch(`${API_BASE}/list-models`);
+        if (!response.ok) throw new Error('Failed to scan models');
+        
+        const data = await response.json();
+        const count = data.models?.length || 0;
+        
+        // Reload the models list to show updated download status
+        loadModelsList();
+        
+        alert(`Scan complete!\n\nFound ${count} downloaded model(s) in the models directory.`);
+    } catch (error) {
+        console.error('Scan error:', error);
+        alert(`Failed to scan models: ${error.message}`);
+    }
+};
+
+// Scan for online models - GLOBAL FUNCTION
+window.scanOnlineModels = async function() {
+    console.log('Refreshing online model catalog...');
+    try {
+        // Show loading message
+        const modelsContainer = document.getElementById('models-list');
+        modelsContainer.innerHTML = '<div style="padding: 20px; text-align: center;">🌐 Refreshing online model catalog...</div>';
+        
+        // Add a small delay to show the loading message
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Reload the models list
+        loadModelsList();
+        
+        alert('Online model catalog refreshed!\n\nShowing latest available models from the curated list.');
+    } catch (error) {
+        console.error('Online scan error:', error);
+        alert('Error refreshing online models');
+    }
+};
+
+// Use model - GLOBAL FUNCTION
+window.useModel = function(id) {
+    const model = AVAILABLE_MODELS[id];
+    alert(`To use ${model.name}:\n\n1. Stop the current server\n2. Restart with: python llm_server.py models\\${model.file} 8001`);
+};
 
 // Select model (show details) - GLOBAL FUNCTION
 window.selectModel = function(id) {
@@ -486,7 +574,8 @@ function loadInstances() {
             url: API_BASE,
             port: 8001,
             type: 'local',
-            status: 'unknown'
+            status: 'unknown',
+            model: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf'  // Default model
         }];
         saveInstances();
     }
@@ -703,34 +792,96 @@ window.removeInstance = async function(instanceId) {
 
 // Start instance
 window.startInstance = async function(instanceId) {
+    const instance = instances.find(i => i.id === instanceId);
+    if (!instance) {
+        alert('Instance not found');
+        return;
+    }
+    
+    if (instance.status === 'healthy') {
+        alert('Instance is already running');
+        return;
+    }
+    
+    // Check if instance has a model
+    if (!instance.model) {
+        alert(`Cannot start instance: No model assigned.\n\nPlease recreate this instance with a model selected.`);
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE}/start-instance/${instanceId}`, {
-            method: 'POST'
+        console.log(`Starting instance: ${instance.name} with model: ${instance.model}`);
+        
+        const response = await fetch(`${API_BASE}/start-instance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                instance_id: instanceId,
+                port: instance.port,
+                model: instance.model
+            })
         });
         
         if (!response.ok) {
-            throw new Error('Failed to start instance');
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to start instance');
         }
         
-        setTimeout(updateInstanceStatuses, 1000);
+        const result = await response.json();
+        console.log('Start result:', result);
+        alert(`Starting instance: ${instance.name}\n\nPlease wait a few seconds for the server to start...`);
+        
+        // Update status after a delay
+        setTimeout(updateInstanceStatuses, 3000);
     } catch (error) {
+        console.error('Start instance error:', error);
         alert(`Failed to start instance: ${error.message}`);
     }
 };
 
 // Stop instance
 window.stopInstance = async function(instanceId) {
+    const instance = instances.find(i => i.id === instanceId);
+    if (!instance) {
+        alert('Instance not found');
+        return;
+    }
+    
+    if (!confirm(`Stop instance "${instance.name}"?`)) return;
+    
     try {
-        const response = await fetch(`${API_BASE}/stop-instance/${instanceId}`, {
-            method: 'POST'
+        console.log(`Stopping instance: ${instance.name}`);
+        
+        const response = await fetch(`${API_BASE}/stop-instance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                instance_id: instanceId,
+                port: instance.port
+            })
         });
         
         if (!response.ok) {
-            throw new Error('Failed to stop instance');
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to stop instance');
         }
         
+        const result = await response.json();
+        console.log('Stop result:', result);
+        
+        instance.status = 'offline';
+        renderInstances();
+        
+        if (result.status === 'error') {
+            alert(result.message);
+        } else {
+            alert(`Stopped instance: ${instance.name}`);
+        }
+        
+        // Update status after a delay
         setTimeout(updateInstanceStatuses, 1000);
     } catch (error) {
+        console.error('Stop instance error:', error);
         alert(`Failed to stop instance: ${error.message}`);
     }
 };

@@ -1,45 +1,59 @@
 # LLM Workspace Directory
 
-This directory is the **safe sandbox** for LLM-generated file system commands.
+This directory is the **safe sandbox** for LLM-generated commands and scripts.
 
 ## 🔒 Security
 
-All file/folder operations requested by the LLM are:
-- **Restricted to this directory only** - Path traversal attacks are prevented
-- **Creation only** - No deletion or modification of existing files
-- **Pure Python** - No shell command execution (prevents injection attacks)
+All commands and scripts executed by the LLM are:
+- **Restricted to this directory only** - Commands run with cwd set to workspace
+- **30-second timeout** - Prevents infinite loops or long-running processes
+- **Output captured** - Stdout/stderr shown in chat, not executed directly
+- **No system access** - Can't escape the workspace boundary
 
 ## 📋 How It Works
 
-1. **Enable the filesystem subroutine** on your instance
-2. **Ask the LLM** to create folders or files (e.g., "Create a project structure for a React app")
-3. **Commands are detected** automatically from the LLM's response
-4. **Commands execute** safely within this workspace
-5. **Results display** in the chat with success/failure status
+1. **Enable the terminal access subroutine** (💻 checkbox) on your instance
+2. **Ask the LLM** to create scripts, run commands, install packages, etc.
+3. **LLM responds** with commands in code blocks:
+   - \```powershell for Windows PowerShell commands
+   - \```bash for Linux/Mac bash commands
+   - \```python for Python scripts
+4. **Commands execute automatically** in this workspace
+5. **Results display** in chat with stdout, stderr, and exit codes
 
 ## 🎯 Supported Commands
 
 The system detects and executes:
 
-### PowerShell
-```powershell
-New-Item -Path "folder/subfolder" -ItemType Directory
-New-Item -ItemType Directory -Path "folder"
-New-Item -Path "file.txt" -ItemType File
-mkdir folder
-```
+### PowerShell Code Blocks
+\```powershell
+Get-Date
+Get-ChildItem
+New-Item -Path "folder" -ItemType Directory
+\```
 
-### Bash/Linux
-```bash
-mkdir -p folder/subfolder
-mkdir folder
-touch file.txt
-```
+### Bash/Shell Code Blocks
+\```bash
+ls -la
+mkdir -p project/src
+echo "Hello World" > greeting.txt
+\```
 
-### CMD
-```cmd
-md folder
-```
+### Python Scripts
+\```python
+import datetime
+print(f"Current time: {datetime.datetime.now()}")
+
+# Write to file
+with open('output.txt', 'w') as f:
+    f.write('Hello from Python!')
+\```
+
+### Inline Commands
+Single line commands with $ or > prefix also work
+
+### File System Commands (Still Supported)
+Direct commands like `mkdir folder` or `touch file.txt` still work
 
 ## 📁 View Contents
 
@@ -51,11 +65,22 @@ You can safely delete anything in this directory - it will be recreated as neede
 
 ## 💡 Example Prompts
 
-With the filesystem subroutine enabled, try:
+With the terminal access subroutine enabled, try:
 
-- "Create a Python project structure with src, tests, and docs folders"
-- "Set up a basic web app with folders for html, css, js, and images"
-- "Create a data processing pipeline directory structure"
-- "Make a folder structure for organizing my photos by year and month"
+**Project Setup:**
+- "Create a Python Flask app structure with folders and a basic app.py file, then list the contents"
+- "Set up a React project structure and create a package.json with common dependencies"
 
-The LLM will not only describe the structure but actually create it!
+**Data Processing:**
+- "Create a Python script that generates 100 random numbers and saves them to data.csv, then run it and show the file"
+- "Write a bash script to organize files by extension into folders, then execute it"
+
+**Package Management:**
+- "Install the requests library using pip and create a script that fetches data from an API"
+- "Check the Python version and list all installed packages"
+
+**Automation:**
+- "Create a Python script that backs up all .txt files to a backup/ folder and run it"
+- "Write a PowerShell script to find all files larger than 1KB"
+
+The LLM will not only write the code but **actually execute it** and show you the results!

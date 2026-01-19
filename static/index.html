@@ -47,6 +47,7 @@
                 <menu role="tablist">
                     <button role="tab" aria-selected="true" aria-controls="tab-chat" onclick="switchTab('chat')">Chat</button>
                     <button role="tab" aria-controls="tab-models" onclick="switchTab('models')">Models</button>
+                    <button role="tab" aria-controls="tab-subroutines" onclick="switchTab('subroutines')">Subroutines</button>
                     <button role="tab" aria-controls="tab-settings" onclick="switchTab('settings')">Settings</button>
                 </menu>
 
@@ -97,6 +98,66 @@
                                     <div id="progress-text" style="margin-top: 6px; font-size: 10px; text-align: center;">0%</div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Subroutines Tab -->
+                <article role="tabpanel" id="tab-subroutines" style="display: none;">
+                    <div class="subroutines-container">
+                        <div class="field-row-stacked" style="margin-bottom: 12px;">
+                            <label style="font-weight: bold;">Configure Subroutines for Active Instance</label>
+                            <p style="font-size: 10px; color: #666; margin: 4px 0;">
+                                Selected instance: <span id="subroutine-instance-name" style="font-weight: bold; color: #000080;">None</span>
+                            </p>
+                        </div>
+                        
+                        <fieldset>
+                            <legend>Output Format</legend>
+                            <div class="field-row-stacked" style="padding: 8px;">
+                                <label>
+                                    <input type="checkbox" id="sub-json" value="json" onchange="updateSubroutines()">
+                                    <strong>{ } JSON Output</strong> - Always return valid JSON format
+                                </label>
+                                <label>
+                                    <input type="checkbox" id="sub-xml" value="xml" onchange="updateSubroutines()">
+                                    <strong>&lt; &gt; XML Output</strong> - Return responses in XML format
+                                </label>
+                                <label>
+                                    <input type="checkbox" id="sub-markdown" value="markdown" onchange="updateSubroutines()">
+                                    <strong>MD Markdown Output</strong> - Format responses in markdown
+                                </label>
+                                <label>
+                                    <input type="checkbox" id="sub-code" value="code" onchange="updateSubroutines()">
+                                    <strong>CODE Code-Only</strong> - Return only code without explanations
+                                </label>
+                            </div>
+                        </fieldset>
+                        
+                        <fieldset style="margin-top: 12px;">
+                            <legend>Response Style</legend>
+                            <div class="field-row-stacked" style="padding: 8px;">
+                                <label>
+                                    <input type="checkbox" id="sub-concise" value="concise" onchange="updateSubroutines()">
+                                    <strong>BRIEF Concise Mode</strong> - Brief, direct answers only
+                                </label>
+                                <label>
+                                    <input type="checkbox" id="sub-verbose" value="verbose" onchange="updateSubroutines()">
+                                    <strong>DETAIL Verbose Mode</strong> - Detailed, thorough explanations
+                                </label>
+                            </div>
+                        </fieldset>
+                        
+                        <div class="field-row-stacked" style="margin-top: 16px; padding: 8px; background: #ffffc0; border: 1px solid #808080;">
+                            <label style="font-weight: bold;">ℹ️ Active Instructions:</label>
+                            <div id="active-instructions" style="font-size: 10px; margin-top: 6px; color: #000;">
+                                No subroutines selected
+                            </div>
+                        </div>
+                        
+                        <div class="field-row" style="justify-content: space-between; margin-top: 16px;">
+                            <button onclick="clearAllSubroutines()">Clear All</button>
+                            <button onclick="applySubroutines()" style="font-weight: bold;">Apply Changes</button>
                         </div>
                     </div>
                 </article>

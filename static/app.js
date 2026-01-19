@@ -251,6 +251,11 @@ window.switchTab = function(tabName) {
     if (tabName === 'models') {
         loadModelsList();
     }
+    
+    // Load subroutines when switching to subroutines tab
+    if (tabName === 'subroutines') {
+        loadSubroutinesTab();
+    }
 };
 
 // Check server status
@@ -1460,5 +1465,141 @@ window.stopInstance = async function(instanceId) {
     } catch (error) {
         console.error('Stop instance error:', error);
         alert(`Failed to stop instance: ${error.message}`);
+    }
+};
+
+// ===== SUBROUTINES TAB FUNCTIONS =====
+
+// Load subroutines tab with current instance data
+function loadSubroutinesTab() {
+    if (!activeInstance) {
+        document.getElementById('subroutine-instance-name').textContent = 'No instance selected';
+        // Disable all checkboxes
+        ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+            const checkbox = document.getElementById(id);
+            if (checkbox) {
+                checkbox.checked = false;
+                checkbox.disabled = true;
+            }
+        });
+        document.getElementById('active-instructions').textContent = 'Select an instance to configure subroutines';
+        return;
+    }
+    
+    // Enable all checkboxes
+    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) checkbox.disabled = false;
+    });
+    
+    // Update instance name
+    document.getElementById('subroutine-instance-name').textContent = activeInstance.name;
+    
+    // Load current subroutines
+    const currentSubroutines = activeInstance.subroutines || [];
+    
+    // Update checkboxes
+    document.getElementById('sub-json').checked = currentSubroutines.includes('json');
+    document.getElementById('sub-xml').checked = currentSubroutines.includes('xml');
+    document.getElementById('sub-markdown').checked = currentSubroutines.includes('markdown');
+    document.getElementById('sub-code').checked = currentSubroutines.includes('code');
+    document.getElementById('sub-concise').checked = currentSubroutines.includes('concise');
+    document.getElementById('sub-verbose').checked = currentSubroutines.includes('verbose');
+    
+    // Update active instructions display
+    updateActiveInstructions();
+}
+
+// Update active instructions display
+function updateActiveInstructions() {
+    const prompts = {
+        'json': '{ } JSON: Respond ONLY with valid JSON',
+        'xml': '< > XML: Structure response with XML tags',
+        'markdown': 'MD: Format with Markdown syntax',
+        'code': 'CODE: Code only, no explanations',
+        'concise': 'BRIEF: Direct, concise answers',
+        'verbose': 'DETAIL: Detailed, thorough explanations'
+    };
+    
+    const selected = [];
+    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && checkbox.checked) {
+            const value = checkbox.value;
+            if (prompts[value]) {
+                selected.push(prompts[value]);
+            }
+        }
+    });
+    
+    const instructionsDiv = document.getElementById('active-instructions');
+    if (selected.length === 0) {
+        instructionsDiv.innerHTML = 'No subroutines selected - LLM will respond normally';
+    } else {
+        instructionsDiv.innerHTML = '<strong>System will prepend:</strong><br>' + selected.join('<br>');
+    }
+}
+
+// Update subroutines (called on checkbox change)
+window.updateSubroutines = function() {
+    updateActiveInstructions();
+};
+
+// Clear all subroutines
+window.clearAllSubroutines = function() {
+    ['sub-json', 'sub-xml', 'sub-markdown', 'sub-code', 'sub-concise', 'sub-verbose'].forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) checkbox.checked = false;
+    });
+    updateActiveInstructions();
+};
+
+// Apply subroutines to active instance
+window.applySubroutines = function() {
+    if (!activeInstance) {
+        alert('No instance selected');
+        return;
+    }
+    
+    // Collect selected subroutines
+    const subroutines = [];
+    const checkboxMap = {
+        'sub-json': 'json',
+        'sub-xml': 'xml',
+        'sub-markdown': 'markdown',
+        'sub-code': 'code',
+        'sub-concise': 'concise',
+        'sub-verbose': 'verbose'
+    };
+    
+    Object.entries(checkboxMap).forEach(([id, value]) => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && checkbox.checked) {
+            subroutines.push(value);
+        }
+    });
+    
+    // Update active instance
+    activeInstance.subroutines = subroutines;
+    
+    // Update in instances array
+    const instanceIndex = instances.findIndex(i => i.id === activeInstance.id);
+    if (instanceIndex !== -1) {
+        instances[instanceIndex].subroutines = subroutines;
+    }
+    
+    // Save to localStorage
+    saveInstances();
+    
+    // Update UI
+    renderInstances();
+    
+    // Announce
+    if (subroutines.length === 0) {
+        speak('Subroutines cleared');
+        alert('Subroutines cleared for ' + activeInstance.name);
+    } else {
+        speak(`Applied ${subroutines.length} subroutine${subroutines.length === 1 ? '' : 's'}`);
+        alert(`Applied ${subroutines.length} subroutine(s) to ${activeInstance.name}:\n• ${subroutines.join('\n• ')}`);
     }
 };

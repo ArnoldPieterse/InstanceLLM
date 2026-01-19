@@ -1661,9 +1661,6 @@ function updateActiveInstructions() {
         instructionsDiv.innerHTML = '<strong>System will prepend:</strong><br>' + selected.join('<br>');
     }
 }
-        instructionsDiv.innerHTML = '<strong>System will prepend:</strong><br>' + selected.join('<br>');
-    }
-}
 
 // Update subroutines (called on checkbox change)
 window.updateSubroutines = function() {

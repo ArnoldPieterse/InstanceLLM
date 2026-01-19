@@ -415,10 +415,8 @@ class LLMServer:
                     chunk = output['choices'][0]['text']
                     yield chunk
             else:
-                # Transfo            # Serve the web interface
-            static_path = Path(__file__).parent / "static" / "index.html"
-            if static_path.exists():
-                return FileResponse(str(static_path))                response = self.generate(prompt, **override_params)
+                # Transformers - generate full response then chunk it
+                response = self.generate(prompt, **override_params)
                 # Simulate streaming by chunking the response
                 for i in range(0, len(response), 10):
                     yield response[i:i+10]

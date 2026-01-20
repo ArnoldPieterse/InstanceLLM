@@ -205,6 +205,13 @@ class CreateInstanceRequest(BaseModel):
     model: str
 
 
+class SettingsUpdateRequest(BaseModel):
+    """Request model for broadcasting settings updates."""
+    instance_id: str
+    settings: Dict[str, Any]
+    source_ip: Optional[str] = None
+
+
 class LLMServer:
     """
     Main LLM Server class with overloaded initialization.
@@ -1105,6 +1112,52 @@ class LLMServer:
                 }
             except Exception as e:
                 logger.error(f"Error getting workspace: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/api/broadcast-settings")
+        async def broadcast_settings(request: SettingsUpdateRequest):
+            """Receive settings broadcast from another instance."""
+            try:
+                logger.info(f"Received settings update for instance {request.instance_id} from {request.source_ip}")
+                
+                # Store the update for polling clients
+                if not hasattr(self, '_settings_updates'):
+                    self._settings_updates = []
+                
+                self._settings_updates.append({
+                    'instance_id': request.instance_id,
+                    'settings': request.settings,
+                    'source_ip': request.source_ip,
+                    'timestamp': time.time()
+                })
+                
+                # Keep only last 100 updates
+                if len(self._settings_updates) > 100:
+                    self._settings_updates = self._settings_updates[-100:]
+                
+                return {"status": "success", "message": "Settings update received"}
+            except Exception as e:
+                logger.error(f"Error broadcasting settings: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/settings-updates")
+        async def get_settings_updates(since: float = 0):
+            """Poll for settings updates from other instances."""
+            try:
+                if not hasattr(self, '_settings_updates'):
+                    self._settings_updates = []
+                
+                # Return updates newer than 'since' timestamp
+                updates = [u for u in self._settings_updates if u['timestamp'] > since]
+                
+                return {
+                    "status": "success",
+                    "updates": updates,
+                    "count": len(updates),
+                    "latest_timestamp": max([u['timestamp'] for u in self._settings_updates], default=since)
+                }
+            except Exception as e:
+                logger.error(f"Error getting settings updates: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
     
     def start(self, host: str = "0.0.0.0", port: int = 8000):

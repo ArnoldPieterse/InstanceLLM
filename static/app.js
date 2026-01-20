@@ -36,6 +36,10 @@ let voiceEnabled = true;
 let samVoice = null;
 window.voiceRate = 1.1; // Default rate
 
+// Settings sync state
+let lastSyncTimestamp = 0;
+let syncIntervalId = null;
+
 // Microsoft Sam Text-to-Speech
 function initSamVoice() {
     const voices = speechSynthesis.getVoices();
@@ -210,6 +214,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModelsList();
     setupSettingsListeners();
     setupEnterKeyListener();
+    
+    // Start settings synchronization
+    startSettingsSync();
     
     // Auto-refresh status every 5 seconds
     setInterval(checkServerStatus, 5000);
@@ -1781,6 +1788,12 @@ window.applySubroutines = function() {
     // Save to localStorage
     saveInstances();
     
+    // Broadcast settings change to network
+    broadcastSettingsChange(activeInstance.id, {
+        subroutines: subroutines,
+        customSubroutines: activeInstance.customSubroutines
+    });
+    
     // Update UI
     renderInstances();
     
@@ -1871,6 +1884,12 @@ window.addCustomSubroutine = function() {
     // Save
     saveInstances();
     
+    // Broadcast settings change
+    broadcastSettingsChange(activeInstance.id, {
+        customSubroutines: activeInstance.customSubroutines,
+        subroutines: activeInstance.subroutines
+    });
+    
     // Clear inputs
     nameInput.value = '';
     instructionInput.value = '';
@@ -1911,6 +1930,12 @@ window.removeCustomSubroutine = function(name) {
     
     // Save
     saveInstances();
+    
+    // Broadcast settings change
+    broadcastSettingsChange(activeInstance.id, {
+        customSubroutines: activeInstance.customSubroutines,
+        subroutines: activeInstance.subroutines
+    });
     
     // Refresh display
     renderCustomSubroutines();
@@ -1960,4 +1985,139 @@ window.viewWorkspace = async function() {
         alert(`Failed to fetch workspace: ${error.message}`);
     }
 };
+
+// ===== SETTINGS SYNCHRONIZATION =====
+
+// Broadcast settings change to all network instances
+async function broadcastSettingsChange(instanceId, settings) {
+    try {
+        const localIp = window.location.hostname;
+        
+        // Get all instances
+        const allInstances = [...instances];
+        
+        // Broadcast to each instance
+        for (const instance of allInstances) {
+            // Skip if same as current instance
+            if (instance.id === instanceId) continue;
+            
+            try {
+                const endpoint = instance.url || `http://${instance.ip || instance.local_ip}:${instance.port}`;
+                
+                await fetch(`${endpoint}/api/broadcast-settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        instance_id: instanceId,
+                        settings: settings,
+                        source_ip: localIp
+                    }),
+                    signal: AbortSignal.timeout(2000) // 2 second timeout
+                });
+                
+                console.log(`Broadcast settings to ${endpoint}`);
+            } catch (err) {
+                // Silently fail for unreachable instances
+                console.warn(`Failed to broadcast to instance:`, err.message);
+            }
+        }
+    } catch (error) {
+        console.error('Error broadcasting settings:', error);
+    }
+}
+
+// Poll for settings updates from other instances
+async function pollSettingsUpdates() {
+    try {
+        const apiEndpoint = getApiEndpoint();
+        const response = await fetch(`${apiEndpoint}/api/settings-updates?since=${lastSyncTimestamp}`, {
+            signal: AbortSignal.timeout(5000)
+        });
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        
+        if (data.updates && data.updates.length > 0) {
+            console.log(`Received ${data.updates.length} settings updates`);
+            
+            // Apply each update
+            for (const update of data.updates) {
+                applyRemoteSettingsUpdate(update);
+            }
+            
+            lastSyncTimestamp = data.latest_timestamp;
+        }
+    } catch (error) {
+        // Silently fail - polling will retry
+        console.debug('Settings poll error:', error.message);
+    }
+}
+
+// Apply a settings update received from another instance
+function applyRemoteSettingsUpdate(update) {
+    try {
+        const instance = instances.find(i => i.id === update.instance_id);
+        if (!instance) {
+            console.warn(`Unknown instance ${update.instance_id} in update`);
+            return;
+        }
+        
+        // Update instance settings
+        const settings = update.settings;
+        
+        if (settings.subroutines !== undefined) {
+            instance.subroutines = settings.subroutines;
+        }
+        
+        if (settings.customSubroutines !== undefined) {
+            instance.customSubroutines = settings.customSubroutines;
+        }
+        
+        if (settings.name !== undefined) {
+            instance.name = settings.name;
+        }
+        
+        // Save to localStorage
+        saveInstances();
+        
+        // Refresh UI if this is the active instance
+        if (activeInstance && activeInstance.id === update.instance_id) {
+            activeInstance = instance;
+            
+            // Reload subroutines tab if it's open
+            const subroutinesTab = document.getElementById('tab-subroutines');
+            if (subroutinesTab && subroutinesTab.style.display !== 'none') {
+                loadSubroutinesTab();
+            }
+        }
+        
+        // Update instance display
+        renderInstances();
+        
+        console.log(`Applied settings update for instance ${update.instance_id} from ${update.source_ip}`);
+    } catch (error) {
+        console.error('Error applying settings update:', error);
+    }
+}
+
+// Start settings synchronization polling
+function startSettingsSync() {
+    if (syncIntervalId) return; // Already running
+    
+    console.log('Starting settings synchronization...');
+    lastSyncTimestamp = Date.now() / 1000;
+    
+    // Poll every 2 seconds
+    syncIntervalId = setInterval(pollSettingsUpdates, 2000);
+}
+
+// Stop settings synchronization polling
+function stopSettingsSync() {
+    if (syncIntervalId) {
+        clearInterval(syncIntervalId);
+        syncIntervalId = null;
+        console.log('Stopped settings synchronization');
+    }
+}
 

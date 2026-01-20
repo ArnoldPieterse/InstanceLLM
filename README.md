@@ -2,6 +2,8 @@
 
 A production-ready Python application that hosts local Large Language Models (LLMs) on your network with a **retro Windows 95 web interface**, multi-instance management, and RESTful API. Perfect for running AI models privately without cloud dependencies.
 
+![Web Interface Screenshot](screenshots/web-interface.png)
+
 ---
 
 ## 🎨 Features Overview
@@ -13,6 +15,9 @@ A production-ready Python application that hosts local Large Language Models (LL
 - ⚙️ **Settings Panel** - Configure temperature, tokens, and sampling parameters
 - 🔧 **Multi-Instance Management** - Run multiple LLM servers on different ports
 - 📊 **Instance Tiles** - Visual sidebar showing all running instances with live status
+- 🔄 **Recursive Language Model** - Process ultra-long prompts (100x context window)
+- 🌐 **Web-based Installer** - Auto-detects OS and provides installation scripts
+- 🔄 **Instance Sync** - Automatically displays API-created instances in UI
 
 ### **API Features**
 - 🚀 **Simple initialization** with just a model path
@@ -90,6 +95,38 @@ This application:
 5. **Supports custom configurations** via overloaded constructors and parameter arrays
 6. **Works with or without GPU** (CPU-only mode supported)
 7. **Includes mock LLM** for testing without actual model inference libraries
+8. **Recursive Language Model** - Process ultra-long prompts via decomposition (based on [arxiv:2512.24601](https://arxiv.org/abs/2512.24601))
+9. **Web-based Installer** - Cross-platform installation with auto OS detection
+10. **Instance Sync** - API-created instances automatically appear in the web UI
+
+## 🆕 Latest Features (January 2026)
+
+### Recursive Language Model Subroutine
+Process prompts **100x beyond your context window** using the Recursive Language Model technique:
+- **DECOMPOSE** complex prompts into manageable chunks
+- **EXAMINE** each section systematically
+- **RECURSE** over long content with intelligent summarization
+- **SYNTHESIZE** comprehensive responses from multiple sections
+
+Based on research paper: [Recursive Language Models (Zhang, Kraska, Khattab)](https://arxiv.org/abs/2512.24601)
+
+**Usage:**
+- Enable "Recursive Mode" checkbox when creating instances
+- Toggle via Subroutines tab for existing instances
+- Handles documents, codebases, and content 2 orders of magnitude beyond normal limits
+
+### Web-Based Installer
+Visit `http://localhost:8000/installer.html` for a streamlined installation experience:
+- **Auto OS Detection** - Automatically detects Windows, macOS, or Linux
+- **One-Click Download** - Download platform-specific installation scripts
+- **Installation Verification** - Check if server is running with built-in diagnostics
+- **Step-by-Step Guide** - Modal instructions for each platform
+
+### Instance Synchronization
+Instances created via API now automatically sync with the web UI:
+- `syncInstancesFromServer()` fetches running instances from `/api/info`
+- Displays API-created instances without manual refresh
+- Maintains localStorage across browser sessions
 
 ## 📦 Installation
 
@@ -504,6 +541,26 @@ Content-Type: application/json
 }
 ```
 
+**With Subroutines (NEW):**
+```json
+{
+  "name": "Advanced LLM Instance",
+  "port": 8002,
+  "model": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+  "subroutines": ["json", "recursive", "filesystem"]
+}
+```
+
+**Available Subroutines:**
+- `json` - Respond only with valid JSON
+- `xml` - Format responses in XML
+- `markdown` - Use Markdown formatting
+- `code` - Code-only responses
+- `concise` - Brief, direct answers
+- `verbose` - Detailed explanations
+- `filesystem` - Terminal access for file operations
+- `recursive` - Handle ultra-long prompts (100x context window)
+
 **Response:**
 ```json
 {
@@ -574,6 +631,43 @@ GET http://localhost:8000/list-instances
 }
 ```
 
+#### Server Information (NEW)
+```bash
+GET http://localhost:8000/api/info
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "ip": "192.168.0.86",
+  "hostname": "MY-PC",
+  "instances": [
+    {
+      "instance_id": "instance-8001",
+      "name": "Secondary Server",
+      "port": 8001,
+      "model": "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+      "status": "running"
+    }
+  ]
+}
+```
+
+#### Installation Endpoints (NEW)
+```bash
+GET http://localhost:8000/installer.html   # Web-based installer UI
+GET http://localhost:8000/install.bat      # Windows installation script
+GET http://localhost:8000/install.sh       # macOS/Linux installation script
+```
+
+The installer.html provides:
+- Automatic OS detection
+- Platform switcher for manual override
+- One-click download of installation scripts
+- Installation verification via `/api/info` ping
+- Step-by-step installation instructions
+
 #### PowerShell Examples
 ```powershell
 # List models
@@ -587,12 +681,24 @@ $body = @{
 } | ConvertTo-Json
 Invoke-RestMethod -Uri "http://localhost:8000/create-instance" -Method Post -ContentType "application/json" -Body $body
 
+# Create instance with subroutines (NEW)
+$body = @{
+    name = "Advanced Instance"
+    port = 8003
+    model = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+    subroutines = @("json", "recursive", "filesystem")
+} | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8000/create-instance" -Method Post -ContentType "application/json" -Body $body
+
 # Stop instance
 $body = @{ instance_id = "instance-8002" } | ConvertTo-Json
 Invoke-RestMethod -Uri "http://localhost:8000/stop-instance" -Method Post -ContentType "application/json" -Body $body
 
 # List running instances
 Invoke-RestMethod -Uri "http://localhost:8000/list-instances" -Method Get
+
+# Get server info (NEW)
+Invoke-RestMethod -Uri "http://localhost:8000/api/info" -Method Get
 ```
 
 ## ⚙️ Configuration Parameters

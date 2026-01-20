@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InstanceLLM Control Panel</title>
-    <link rel="stylesheet" href="/static/style.css?v=2">
+    <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
 <body>
     <div class="app-container">
@@ -158,8 +158,19 @@
                             </div>
                         </fieldset>
                         
-                        <fieldset style="margin-top: 12px;">
-                            <legend>Custom Subroutines</legend>
+                        <fieldset style="margin-top: 12px;">                            <legend>Advanced Processing</legend>
+                            <div class="field-row-stacked" style="padding: 8px;">
+                                <label>
+                                    <input type="checkbox" id="sub-recursive" value="recursive" onchange="updateSubroutines()">
+                                    <strong>🔄 Recursive Mode</strong> - Handle ultra-long prompts
+                                </label>
+                                <p style="font-size: 10px; margin: 4px 0 0 20px; color: #666;">
+                                    Based on arxiv.org/abs/2512.24601 - Process prompts 100x beyond context window
+                                </p>
+                            </div>
+                        </fieldset>
+                        
+                        <fieldset style="margin-top: 12px;">                            <legend>Custom Subroutines</legend>
                             <div class="field-row-stacked" style="padding: 8px;">
                                 <div id="custom-subroutines-list">
                                     <!-- Custom subroutines will be added here -->
@@ -376,8 +387,10 @@
                             <label>
                                 <input type="checkbox" id="subroutine-filesystem" value="filesystem">
                                 � Terminal Access - Execute commands and scripts in workspace
-                            </label>
-                        </div>
+                            </label>                            <label>
+                                <input type="checkbox" id="subroutine-recursive" value="recursive">
+                                🔄 Recursive Mode - Handle ultra-long prompts via decomposition
+                            </label>                        </div>
                     </fieldset>
                 </div>
                 
@@ -400,6 +413,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=3"></script>
+    <script src="/static/app.js?v=5"></script>
 </body>
 </html>

@@ -616,7 +616,21 @@ function getSubroutinePrompt() {
         'code': 'Respond with code only. Do not include explanations, comments, or text outside of the code.',
         'concise': 'Be extremely concise. Provide brief, direct answers without elaboration.',
         'verbose': 'Provide detailed, thorough explanations with examples and comprehensive information.',
-        'filesystem': 'You have full terminal access within a safe workspace directory. Include executable commands in code blocks (```powershell, ```bash, ```python) for file operations, running scripts, installing packages, etc. Commands will be automatically executed. Provide Windows PowerShell, CMD, bash, or Python commands as appropriate.'
+        'filesystem': 'You have full terminal access within a safe workspace directory. Include executable commands in code blocks (```powershell, ```bash, ```python) for file operations, running scripts, installing packages, etc. Commands will be automatically executed. Provide Windows PowerShell, CMD, bash, or Python commands as appropriate.',
+        'recursive': `RECURSIVE LANGUAGE MODEL MODE: You are processing a potentially very long prompt that may exceed your context window. Your task is to:
+
+1. **DECOMPOSE**: Break down complex, long prompts into smaller, manageable chunks
+2. **EXAMINE**: Carefully analyze each section of the input
+3. **RECURSE**: When encountering very long content, summarize key points and indicate where recursive processing would be beneficial
+4. **SYNTHESIZE**: Combine insights from multiple sections into a coherent response
+
+When you detect a long prompt:
+- First, provide a high-level overview of what you're being asked
+- Then process the content in logical sections
+- For each section, provide key insights and takeaways
+- Finally, synthesize a comprehensive response that addresses the full prompt
+
+You can handle prompts 2 orders of magnitude beyond normal context windows by intelligently decomposing and processing them recursively.`
     };
     
     const instructions = activeInstance.subroutines
@@ -832,12 +846,6 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-    output.scrollTop = output.scrollHeight;
-    
-    // Announce command execution
-    const announcement = `Executed ${successCount} of ${totalCount} file system commands`;
-    speak(announcement);
-}
 
 // Add chat message
 function addChatMessage(type, text) {
@@ -983,9 +991,49 @@ function loadInstances() {
         saveInstances();
     }
     
+    // Fetch instances from server and merge with local
+    syncInstancesFromServer();
+    
     renderInstances();
     if (instances.length > 0) {
         selectInstance(instances[0].id);
+    }
+}
+
+// Sync instances from server
+async function syncInstancesFromServer() {
+    try {
+        const response = await fetch(`${API_BASE}/api/info`);
+        if (response.ok) {
+            const data = await response.json();
+            const localIp = data.ip || window.location.hostname;
+            
+            // Add any server instances that aren't in our local list
+            if (data.instances && Array.isArray(data.instances)) {
+                data.instances.forEach(serverInstance => {
+                    const exists = instances.find(i => i.id === serverInstance.instance_id);
+                    if (!exists && serverInstance.instance_id !== 'default') {
+                        instances.push({
+                            id: serverInstance.instance_id,
+                            name: serverInstance.name || serverInstance.instance_id,
+                            url: `http://${localIp}:${serverInstance.port}`,
+                            port: serverInstance.port,
+                            type: 'local',
+                            model: serverInstance.model || 'unknown',
+                            status: serverInstance.status || 'running',
+                            local_ip: localIp
+                        });
+                    }
+                });
+                
+                if (data.instances.length > 0) {
+                    saveInstances();
+                    renderInstances();
+                }
+            }
+        }
+    } catch (error) {
+        console.log('Could not sync instances from server:', error);
     }
 }
 

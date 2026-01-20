@@ -79,7 +79,7 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -266,6 +266,42 @@ class LLMServer:
         static_path = Path(__file__).parent / "static"
         if static_path.exists():
             self.app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+        
+        # Serve installer files with proper download headers
+        @self.app.get("/install.bat")
+        async def download_install_bat():
+            bat_path = Path(__file__).parent / "install.bat"
+            if bat_path.exists():
+                return FileResponse(
+                    path=str(bat_path),
+                    filename="install.bat",
+                    media_type="application/octet-stream",
+                    headers={"Content-Disposition": "attachment; filename=install.bat"}
+                )
+            raise HTTPException(status_code=404, detail="install.bat not found")
+        
+        @self.app.get("/install.sh")
+        async def download_install_sh():
+            sh_path = Path(__file__).parent / "install.sh"
+            if sh_path.exists():
+                return FileResponse(
+                    path=str(sh_path),
+                    filename="install.sh",
+                    media_type="application/octet-stream",
+                    headers={"Content-Disposition": "attachment; filename=install.sh"}
+                )
+            raise HTTPException(status_code=404, detail="install.sh not found")
+        
+        # Serve installer.html
+        @self.app.get("/installer.html")
+        async def serve_installer():
+            installer_path = Path(__file__).parent / "installer.html"
+            if installer_path.exists():
+                return FileResponse(
+                    path=str(installer_path),
+                    media_type="text/html"
+                )
+            raise HTTPException(status_code=404, detail="installer.html not found")
         
         # Initialize configuration with custom parameters
         self.config = self._initialize_config(**kwargs)

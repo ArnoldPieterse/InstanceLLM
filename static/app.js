@@ -1208,6 +1208,44 @@ function updateResourceDisplay() {
 window.showAddInstanceDialog = function() {
     document.getElementById('add-instance-dialog').style.display = 'flex';
     
+    // Populate deploy target dropdown with discovered servers
+    const deploySelect = document.getElementById('deploy-target');
+    deploySelect.innerHTML = '<option value="local">Local Machine (This Computer)</option>';
+    
+    // Add separator
+    const separator = document.createElement('option');
+    separator.disabled = true;
+    separator.textContent = '──────────────────';
+    deploySelect.appendChild(separator);
+    
+    // Add network instances
+    const uniqueServers = new Map();
+    instances.forEach(inst => {
+        if (inst.isRemote && inst.ip) {
+            const key = `${inst.ip}:8000`; // Main server port
+            if (!uniqueServers.has(key)) {
+                uniqueServers.set(key, {
+                    hostname: inst.hostname || inst.ip,
+                    ip: inst.ip
+                });
+            }
+        }
+    });
+    
+    uniqueServers.forEach((server, key) => {
+        const option = document.createElement('option');
+        option.value = server.ip;
+        option.textContent = `🌐 ${server.hostname} (${server.ip})`;
+        deploySelect.appendChild(option);
+    });
+    
+    if (uniqueServers.size === 0) {
+        const helpOption = document.createElement('option');
+        helpOption.disabled = true;
+        helpOption.textContent = '(Click 🔍 to scan network)';
+        deploySelect.appendChild(helpOption);
+    }
+    
     // Populate model dropdown
     const modelSelect = document.getElementById('instance-model');
     modelSelect.innerHTML = '<option value="">Select model...</option>';
@@ -1345,6 +1383,7 @@ window.addInstance = async function() {
         const name = document.getElementById('instance-name').value.trim();
         const port = parseInt(document.getElementById('instance-port').value);
         const model = document.getElementById('instance-model').value;
+        const deployTarget = document.getElementById('deploy-target').value;
         
         if (!name || !port || !model) {
             alert('Please fill in all fields');
@@ -1371,10 +1410,15 @@ window.addInstance = async function() {
         });
         
         console.log('Creating instance with subroutines:', subroutines);
+        console.log('Deploy target:', deployTarget);
+        
+        // Determine target server
+        const targetEndpoint = deployTarget === 'local' ? API_BASE : `http://${deployTarget}:8000`;
+        const isRemote = deployTarget !== 'local';
         
         // Create new instance via API
         try {
-            const response = await fetch(`${API_BASE}/create-instance`, {
+            const response = await fetch(`${targetEndpoint}/create-instance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, port, model })
@@ -1386,28 +1430,31 @@ window.addInstance = async function() {
             
             const result = await response.json();
             
-            // Get the IP from the main instance or use API_BASE
-            const mainInstance = instances.find(i => i.id === 'default');
-            const baseIp = mainInstance?.local_ip || window.location.hostname;
+            // Determine host IP
+            const hostIp = isRemote ? deployTarget : (instances.find(i => i.id === 'default')?.local_ip || window.location.hostname);
             
             instances.push({
                 id: result.instance_id || `instance-${Date.now()}`,
                 name: name,
-                url: `http://${baseIp}:${port}`,
+                url: `http://${hostIp}:${port}`,
                 port: port,
-                type: 'local',
+                type: isRemote ? 'remote' : 'local',
                 model: model,
                 status: 'offline',
-                local_ip: baseIp,
+                local_ip: hostIp,
+                ip: isRemote ? deployTarget : undefined,
+                isRemote: isRemote,
+                hostname: isRemote ? deployTarget : undefined,
                 subroutines: subroutines
             });
             
             // Show resource warning if an instance was paused
             if (result.paused_instance) {
                 speak('Instance created. Warning. Another instance was paused.');
-                alert(`Instance created!\n\nWarning: ${result.paused_instance} was paused due to high memory usage.`);
+                alert(`Instance created on ${isRemote ? deployTarget : 'local machine'}!\n\nWarning: ${result.paused_instance} was paused due to high memory usage.`);
             } else {
-                speak('Instance created successfully.');
+                speak(`Instance created successfully on ${isRemote ? 'network server' : 'local machine'}.`);
+                alert(`Instance created on ${isRemote ? deployTarget : 'local machine'}!`);
             }
             
         } catch (error) {
@@ -1513,11 +1560,14 @@ window.startInstance = async function(instanceId) {
     try {
         console.log(`Starting instance: ${instance.name} with model: ${instance.model}`);
         
-        const response = await fetch(`${API_BASE}/start-instance`, {
+        // Determine target server (local or remote)
+        const targetEndpoint = instance.isRemote ? `http://${instance.ip}:8000` : API_BASE;
+        
+        const response = await fetch(`${targetEndpoint}/start-instance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                instance_id: instanceId,
+                instance_id: instance.id,
                 port: instance.port,
                 model: instance.model
             })
@@ -1535,8 +1585,8 @@ window.startInstance = async function(instanceId) {
         instance.status = 'starting';
         renderInstances();
         
-        speak(`Starting instance ${instance.name}`);
-        alert(`Starting instance: ${instance.name}\n\nPlease wait a few seconds for the server to start...`);
+        speak(`Starting instance ${instance.name} on ${instance.isRemote ? 'network server' : 'local machine'}`);
+        alert(`Starting instance: ${instance.name}\nServer: ${instance.isRemote ? instance.hostname || instance.ip : 'Local'}\n\nPlease wait a few seconds for the server to start...`);
         
         // Update status after delays to check if it's running
         setTimeout(() => {
@@ -1584,13 +1634,16 @@ window.stopInstance = async function(instanceId) {
     try {
         console.log(`Stopping instance: ${instance.name} (ID: ${instanceId}, Port: ${instance.port})`);
         
+        // Determine target server (local or remote)
+        const targetEndpoint = instance.isRemote ? `http://${instance.ip}:8000` : API_BASE;
+        
         const requestBody = {
             instance_id: instanceId,
             port: instance.port
         };
         console.log('Request body:', requestBody);
         
-        const response = await fetch(`${API_BASE}/stop-instance`, {
+        const response = await fetch(`${targetEndpoint}/stop-instance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)

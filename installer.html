@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstanceLLM Installer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'MS Sans Serif', Arial, sans-serif;
+            background: linear-gradient(135deg, #008080 0%, #000080 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .installer-window {
+            background: #c0c0c0;
+            border: 2px solid #ffffff;
+            box-shadow: 
+                inset 1px 1px 0 #dfdfdf,
+                inset -1px -1px 0 #808080,
+                2px 2px 0 #000000;
+            width: 100%;
+            max-width: 700px;
+            min-height: 500px;
+        }
+
+        .title-bar {
+            background: linear-gradient(to right, #000080, #1084d0);
+            padding: 3px 5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title-text {
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .window-icon {
+            width: 16px;
+            height: 16px;
+            background: #c0c0c0;
+            border: 1px solid white;
+        }
+
+        .close-btn {
+            background: #c0c0c0;
+            border: 2px solid #ffffff;
+            box-shadow: 
+                inset 1px 1px 0 #dfdfdf,
+                inset -1px -1px 0 #808080;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .close-btn:active {
+            box-shadow: 
+                inset -1px -1px 0 #dfdfdf,
+                inset 1px 1px 0 #808080;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #000080;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #555;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .os-detection {
+            background: white;
+            border: 2px solid #808080;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .os-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .os-icon {
+            font-size: 48px;
+        }
+
+        .os-details h2 {
+            font-size: 18px;
+            color: #000080;
+            margin-bottom: 5px;
+        }
+
+        .os-details p {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .install-section {
+            background: #f0f0f0;
+            border: 2px solid #808080;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .install-section h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #000080;
+        }
+
+        .command-box {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border: 2px solid #808080;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #c0c0c0;
+            border: 2px solid #ffffff;
+            box-shadow: 
+                inset 1px 1px 0 #dfdfdf,
+                inset -1px -1px 0 #808080;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: 'MS Sans Serif', Arial, sans-serif;
+        }
+
+        .copy-btn:active {
+            box-shadow: 
+                inset -1px -1px 0 #dfdfdf,
+                inset 1px 1px 0 #808080;
+        }
+
+        .btn {
+            background: #c0c0c0;
+            border: 2px solid #ffffff;
+            box-shadow: 
+                inset 1px 1px 0 #dfdfdf,
+                inset -1px -1px 0 #808080;
+            padding: 8px 20px;
+            cursor: pointer;
+            font-family: 'MS Sans Serif', Arial, sans-serif;
+            font-size: 13px;
+            margin-right: 10px;
+            text-decoration: none;
+            color: black;
+            display: inline-block;
+        }
+
+        .btn:active {
+            box-shadow: 
+                inset -1px -1px 0 #dfdfdf,
+                inset 1px 1px 0 #808080;
+        }
+
+        .btn-primary {
+            font-weight: bold;
+        }
+
+        .steps {
+            list-style: none;
+            counter-reset: step-counter;
+        }
+
+        .steps li {
+            counter-increment: step-counter;
+            margin-bottom: 15px;
+            padding-left: 35px;
+            position: relative;
+        }
+
+        .steps li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #000080;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .note {
+            background: #ffffcc;
+            border: 2px solid #808080;
+            padding: 10px;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+
+        .note strong {
+            color: #cc0000;
+        }
+
+        .platform-switcher {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ccc;
+            text-align: center;
+        }
+
+        .platform-switcher .btn {
+            margin: 3px;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .button-row {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 2px solid #808080;
+        }
+
+        .requirements {
+            background: white;
+            border: 2px solid #808080;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .requirements ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        .requirements li {
+            margin-bottom: 5px;
+        }
+
+        .success-icon {
+            color: #00aa00;
+            margin-right: 5px;
+        }
+
+        .install-button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .big-install-btn {
+            background: #c0c0c0;
+            border: 3px solid #ffffff;
+            box-shadow: 
+                inset 2px 2px 0 #dfdfdf,
+                inset -2px -2px 0 #808080,
+                3px 3px 0 #000000;
+            padding: 20px 50px;
+            cursor: pointer;
+            font-family: 'MS Sans Serif', Arial, sans-serif;
+            font-size: 18px;
+            font-weight: bold;
+            color: #000;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.1s;
+        }
+
+        .big-install-btn:hover {
+            background: #d0d0d0;
+        }
+
+        .big-install-btn:active {
+            box-shadow: 
+                inset -2px -2px 0 #dfdfdf,
+                inset 2px 2px 0 #808080,
+                1px 1px 0 #000000;
+            transform: translate(2px, 2px);
+        }
+
+        .big-install-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-box {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border: 2px solid #808080;
+            margin: 20px 0;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            display: none;
+        }
+
+        .status-box.active {
+            display: block;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #c0c0c0;
+            border: 2px solid #ffffff;
+            box-shadow: 
+                inset 1px 1px 0 #dfdfdf,
+                inset -1px -1px 0 #808080,
+                3px 3px 0 #000000;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-title-bar {
+            background: linear-gradient(to right, #000080, #1084d0);
+            padding: 3px 5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-weight: bold;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .instruction-step {
+            background: white;
+            border: 2px solid #808080;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .instruction-step h4 {
+            color: #000080;
+            margin-bottom: 10px;
+        }
+
+        .instruction-step code {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            display: block;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            border: 1px solid #808080;
+        }
+
+        .copy-btn-inline {
+            background: #c0c0c0;
+            border: 2px solid #ffffff;
+            box-shadow: 
+                inset 1px 1px 0 #dfdfdf,
+                inset -1px -1px 0 #808080;
+            padding: 5px 15px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'MS Sans Serif', Arial, sans-serif;
+            margin-top: 5px;
+        }
+
+        .copy-btn-inline:active {
+            box-shadow: 
+                inset -1px -1px 0 #dfdfdf,
+                inset 1px 1px 0 #808080;
+        }
+
+        .download-links {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 600px) {
+            .content {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            .command-box {
+                font-size: 11px;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="installer-window">
+        <div class="title-bar">
+            <div class="title-text">
+                <div class="window-icon"></div>
+                InstanceLLM Setup
+            </div>
+            <button class="close-btn" onclick="window.close()">×</button>
+        </div>
+
+        <div class="content">
+            <h1>🖥️ InstanceLLM Installer</h1>
+
+            <div class="os-detection">
+                <div class="os-info">
+                    <div class="os-icon" id="os-icon">💻</div>
+                    <div class="os-details">
+                        <h2 id="os-name">Detecting your operating system...</h2>
+                        <p id="os-description">Please wait...</p>
+                    </div>
+                </div>
+                <div class="platform-switcher">
+                    <p style="margin-bottom: 8px; font-size: 12px; color: #666;">Wrong platform detected?</p>
+                    <button class="btn" onclick="switchPlatform('windows')">🪟 Windows</button>
+                    <button class="btn" onclick="switchPlatform('macos')">🍎 macOS</button>
+                    <button class="btn" onclick="switchPlatform('linux')">🐧 Linux</button>
+                </div>
+            </div>
+
+            <div class="requirements">
+                <strong>📋 Requirements:</strong>
+                <ul>
+                    <li><span class="success-icon">✓</span> Python 3.10 or higher</li>
+                    <li><span class="success-icon">✓</span> Git (optional, for updates)</li>
+                    <li><span class="success-icon">✓</span> Internet connection for downloading models</li>
+                    <li><span class="success-icon">✓</span> ~500MB disk space minimum</li>
+                </ul>
+            </div>
+
+            <div class="install-button-container">
+                <button class="big-install-btn" id="install-btn" onclick="downloadInstaller()">
+                    📥 Download Installer
+                </button>
+                <button class="big-install-btn" id="check-btn" onclick="checkInstallation()" style="display:none; margin-top: 15px;">
+                    🔍 Check Installation
+                </button>
+            </div>
+
+            <div class="status-box" id="status-box"></div>
+
+            <div class="button-row">
+                <a href="static/index.html" class="btn btn-primary" id="open-btn" style="display:none;">🚀 Open InstanceLLM</a>
+                <a href="README.md" class="btn">📖 Read Documentation</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installation Instructions Modal -->
+    <div class="modal" id="instructions-modal">
+        <div class="modal-content">
+            <div class="modal-title-bar">
+                <span>📋 Installation Instructions</span>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" id="modal-instructions">
+                <!-- Instructions will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentOS = null;
+
+        // Detect operating system
+        function detectOS() {
+            const userAgent = window.navigator.userAgent;
+            const platform = window.navigator.platform;
+            const macosPlatforms = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
+            const windowsPlatforms = ['Win32', 'Win64', 'Windows', 'WinCE'];
+            const iosPlatforms = ['iPhone', 'iPad', 'iPod'];
+            
+            let os = 'unknown';
+            let osIcon = '💻';
+            let osName = 'Unknown Operating System';
+            let osDescription = 'Click Install to begin setup';
+
+            if (macosPlatforms.indexOf(platform) !== -1) {
+                os = 'macos';
+                osIcon = '🍎';
+                osName = 'macOS';
+                osDescription = 'Ready to install on your Mac';
+            } else if (iosPlatforms.indexOf(platform) !== -1) {
+                os = 'ios';
+                osIcon = '📱';
+                osName = 'iOS';
+                osDescription = 'InstanceLLM requires a desktop/laptop to run';
+            } else if (windowsPlatforms.indexOf(platform) !== -1) {
+                os = 'windows';
+                osIcon = '🪟';
+                osName = 'Windows';
+                osDescription = 'Ready to install on your PC';
+            } else if (/Android/.test(userAgent)) {
+                os = 'android';
+                osIcon = '🤖';
+                osName = 'Android';
+                osDescription = 'InstanceLLM requires a desktop/laptop to run';
+            } else if (/Linux/.test(platform)) {
+                os = 'linux';
+                osIcon = '🐧';
+                osName = 'Linux';
+                osDescription = 'Ready to install on your system';
+            }
+
+            return { os, osIcon, osName, osDescription };
+        }
+
+        // Show OS info
+        function showOSInfo(osInfo) {
+            document.getElementById('os-icon').textContent = osInfo.osIcon;
+            document.getElementById('os-name').textContent = osInfo.osName;
+            document.getElementById('os-description').textContent = osInfo.osDescription;
+            currentOS = osInfo.os;
+        }
+
+        // Switch platform manually
+        function switchPlatform(platform) {
+            let osInfo = {};
+            
+            if (platform === 'windows') {
+                osInfo = {
+                    os: 'windows',
+                    osIcon: '🪟',
+                    osName: 'Windows',
+                    osDescription: 'Ready to install on Windows PC'
+                };
+            } else if (platform === 'macos') {
+                osInfo = {
+                    os: 'macos',
+                    osIcon: '🍎',
+                    osName: 'macOS',
+                    osDescription: 'Ready to install on Mac'
+                };
+            } else if (platform === 'linux') {
+                osInfo = {
+                    os: 'linux',
+                    osIcon: '🐧',
+                    osName: 'Linux',
+                    osDescription: 'Ready to install on Linux'
+                };
+            }
+            
+            showOSInfo(osInfo);
+        }
+
+        // Log to status box
+        function log(message) {
+            const statusBox = document.getElementById('status-box');
+            statusBox.classList.add('active');
+            statusBox.textContent += message + '\n';
+            statusBox.scrollTop = statusBox.scrollHeight;
+        }
+
+        // Show modal with instructions
+        function showModal(content) {
+            document.getElementById('modal-instructions').innerHTML = content;
+            document.getElementById('instructions-modal').classList.add('active');
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('instructions-modal').classList.remove('active');
+        }
+
+        // Copy text to clipboard
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                const original = button.textContent;
+                button.textContent = '✓ Copied!';
+                button.style.background = '#00aa00';
+                button.style.color = 'white';
+                setTimeout(() => {
+                    button.textContent = original;
+                    button.style.background = '#c0c0c0';
+                    button.style.color = 'black';
+                }, 2000);
+            });
+        }
+
+        // Run the installer
+        async function downloadInstaller() {
+            const installBtn = document.getElementById('install-btn');
+            const checkBtn = document.getElementById('check-btn');
+            const statusBox = document.getElementById('status-box');
+            
+            // Disable button
+            installBtn.disabled = true;
+            installBtn.textContent = '⏳ Downloading...';
+            
+            // Clear and show status box
+            statusBox.textContent = '';
+            statusBox.classList.add('active');
+            
+            try {
+                log('Preparing installer...');
+                log('Detected OS: ' + currentOS);
+                log('');
+                
+                if (currentOS === 'windows') {
+                    // Fetch and download install.bat as a blob
+                    try {
+                        const response = await fetch('install.bat');
+                        const blob = await response.blob();
+                        
+                        // Create download link
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = 'install.bat';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                        
+                        log('✓ Downloaded install.bat to your Downloads folder');
+                    } catch (error) {
+                        // Fallback: try direct link with proper headers
+                        const link = document.createElement('a');
+                        link.href = 'install.bat';
+                        link.download = 'install.bat';
+                        link.type = 'application/octet-stream';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        log('✓ Initiated download of install.bat');
+                    }
+                    
+                    log('');
+                    log('IMPORTANT: Run the installer now!');
+                    log('');
+                    log('Option 1 - From Downloads folder:');
+                    log('  1. Open your Downloads folder');
+                    log('  2. Find install.bat');
+                    log('  3. Right-click → "Run as administrator" (recommended)');
+                    log('     OR double-click to run normally');
+                    log('');
+                    log('Option 2 - From PowerShell/Command Prompt:');
+                    log('  1. Navigate to InstanceLLM folder');
+                    log('  2. Run: .\\install.bat');
+                    log('');
+                    log('After installation completes:');
+                    log('  1. Run: .\\start-instancellm.bat');
+                    log('  2. Click "Check Installation" button below');
+                    
+                } else if (currentOS === 'macos' || currentOS === 'linux') {
+                    // Fetch and download install.sh as a blob
+                    try {
+                        const response = await fetch('install.sh');
+                        const blob = await response.blob();
+                        
+                        // Create download link
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = 'install.sh';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                        
+                        log('✓ Downloaded install.sh to your Downloads folder');
+                    } catch (error) {
+                        // Fallback: try direct link
+                        const link = document.createElement('a');
+                        link.href = 'install.sh';
+                        link.download = 'install.sh';
+                        link.type = 'application/octet-stream';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        log('✓ Initiated download of install.sh');
+                    }
+                    
+                    log('');
+                    log('IMPORTANT: Run the installer now!');
+                    log('');
+                    log('In Terminal, run these commands:');
+                    log('  cd ~/Downloads/InstanceLLM');
+                    log('  chmod +x install.sh');
+                    log('  ./install.sh');
+                    log('');
+                    log('After installation completes:');
+                    log('  source .venv/bin/activate');
+                    log('  python llm_server.py');
+                    log('');
+                    log('Then click "Check Installation" button below');
+                    
+                } else {
+                    log('❌ Unsupported platform');
+                    installBtn.disabled = false;
+                    installBtn.textContent = '📥 Download Installer';
+                    return;
+                }
+                
+                log('');
+                log('═══════════════════════════════════════');
+                log('Waiting for you to complete installation...');
+                log('═══════════════════════════════════════');
+                log('');
+                log('⚠️ If the download opened as text:');
+                log('  Right-click the link and "Save link as..."');
+                log('  Make sure to save as .bat or .sh file');
+                
+                installBtn.textContent = '✓ Installer Downloaded';
+                checkBtn.style.display = 'inline-block';
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+                installBtn.disabled = false;
+                installBtn.textContent = '📥 Download Installer';
+            }
+        }
+
+        // Check if installation is complete
+        async function checkInstallation() {
+            const checkBtn = document.getElementById('check-btn');
+            const openBtn = document.getElementById('open-btn');
+            const statusBox = document.getElementById('status-box');
+            
+            checkBtn.disabled = true;
+            checkBtn.textContent = '⏳ Checking...';
+            
+            log('');
+            log('Checking if InstanceLLM is running...');
+            
+            try {
+                // Try to connect to the server
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch('http://localhost:8000/api/info', {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('');
+                    log('✓ SUCCESS! InstanceLLM is running!');
+                    log('');
+                    log('Server Info:');
+                    log('  Version: ' + (data.version || 'unknown'));
+                    log('  Status: Online');
+                    log('  URL: http://localhost:8000');
+                    log('');
+                    log('═══════════════════════════════════════');
+                    log('Installation complete! Click "Open InstanceLLM" below');
+                    log('═══════════════════════════════════════');
+                    
+                    checkBtn.textContent = '✓ Installation Verified';
+                    checkBtn.style.background = '#00aa00';
+                    checkBtn.style.color = 'white';
+                    openBtn.style.display = 'inline-block';
+                    
+                } else {
+                    throw new Error('Server responded with error');
+                }
+                
+            } catch (error) {
+                log('');
+                log('❌ InstanceLLM is not running yet');
+                log('');
+                log('Make sure you:');
+                log('1. Ran the install script (install.bat or install.sh)');
+                log('2. Started the server (start-instancellm.bat or python llm_server.py)');
+                log('3. The server is running on port 8000');
+                log('');
+                log('Try again after starting the server...');
+                
+                checkBtn.disabled = false;
+                checkBtn.textContent = '🔍 Check Installation';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const osInfo = detectOS();
+            showOSInfo(osInfo);
+        });
+    </script>
+</body>
+</html>

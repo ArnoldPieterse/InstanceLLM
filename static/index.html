@@ -326,6 +326,15 @@
                         <label for="instance-name">Name:</label>
                         <input id="instance-name" type="text" placeholder="My LLM Instance" />
                     </div>
+                    
+                    <div class="field-row">
+                        <label for="deploy-target">Deploy To:</label>
+                        <select id="deploy-target">
+                            <option value="local">Local Machine (This Computer)</option>
+                            <option value="" disabled>──────────────────</option>
+                        </select>
+                    </div>
+                    
                     <div class="field-row">
                         <label for="instance-port">Port:</label>
                         <input id="instance-port" type="number" min="8000" max="9999" value="8002" />
@@ -391,6 +400,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=2"></script>
+    <script src="/static/app.js?v=3"></script>
 </body>
 </html>
